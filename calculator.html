@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MTTEdu - Theme</title>
+    <link rel="stylesheet" href="stylesheet.css">
+</head>
+<body>
+    <div id="main">
+        <div id="topnav" style="">
+            <span id = "pr_no">CALC/M001</span>
+            <span id = "logo">MTT Edu Apps</span>
+        </div>
+        <div id = "content">
+            <span class = "heading">Calculator</span>
+            <span class = "prompt">Number A<input class = "input" id = "in_001"></span>
+            <span class = "prompt">Number B<input class = "input" id = "in_002"></span>
+            <span class = "result">Result:<input class = "input resl_dis" id = "re_001" disabled></span>
+            <div style="align-self: center">
+                <button class = "button" onclick="sum()">Sum</button>
+                <button class = "button" onclick="diff()">Difference</button>
+                <button class = "button" onclick="pro()">Product</button>
+                <button class = "button" onclick="div()">Division</button>
+                <button class = "button" onclick="exp()">Exponentiation</button>
+                <button class = "button" onclick="mod()">A Mod B</button>
+                <button class = "button" onclick="log()">Log<sub>e</sub>(A)</button>
+            </div>
+        </div>
+    </div>
+    <div id="footer">
+        <a id = "ft_red" href = "https://mrtechtroid.github.io/edu/">View More</a>
+        <span id = "CRight">&copy; 2021 Mr Techtroid</span>
+    </div>
+    <script>
+        function sum(){
+            a = document.getElementById("in_001").value *1
+            b = document.getElementById("in_002").value *1
+            document.getElementById("re_001").value = a+b
+        }
+        function diff(){
+            a = document.getElementById("in_001").value *1
+            b = document.getElementById("in_002").value *1
+            document.getElementById("re_001").value = a-b
+        }
+        function pro(){
+            a = document.getElementById("in_001").value *1
+            b = document.getElementById("in_002").value *1
+            document.getElementById("re_001").value = a*b
+        }
+        function div(){
+            a = document.getElementById("in_001").value *1
+            b = document.getElementById("in_002").value *1
+            document.getElementById("re_001").value = a/b
+        }
+        function exp(){
+            a = document.getElementById("in_001").value *1
+            b = document.getElementById("in_002").value *1
+            document.getElementById("re_001").value = a**b
+        }
+        function mod(){
+            a = document.getElementById("in_001").value *1
+            b = document.getElementById("in_002").value *1
+            document.getElementById("re_001").value = a%b
+        }
+        function log(){
+            a = document.getElementById("in_001").value *1
+            b = document.getElementById("in_002").value *1
+            document.getElementById("re_001").value = Math.log(a,b)
+        }
+    </script>
+</body>
+</html>
