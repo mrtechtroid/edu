@@ -67,6 +67,7 @@ body {
     top:10vh;
     display: flex;
     flex-direction: column;
+    overflow-y: scroll;
 
 }
 .button {
