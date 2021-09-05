@@ -180,3 +180,16 @@ body {
    bottom: 0px;
    text-decoration: none;
 }
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent; 
+}
+::-webkit-scrollbar-thumb {
+  background: crimson; 
+}
+::-webkit-scrollbar-thumb:hover {
+  background: pink; 
+}5;
+}
