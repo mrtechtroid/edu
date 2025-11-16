@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>REPS Algorithm Visualization</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 30px;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        .btn-send {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .btn-fail {
+            background: #f44336;
+            color: white;
+        }
+        
+        .btn-fix {
+            background: #2196F3;
+            color: white;
+        }
+        
+        .btn-reset {
+            background: #FF9800;
+            color: white;
+        }
+        
+        .main-layout {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        
+        .left-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .status-box {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .status-box h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+        
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding: 8px;
+            background: white;
+            border-radius: 5px;
+        }
+        
+        .status-label {
+            color: #666;
+            font-weight: 500;
+        }
+        
+        .status-value {
+            color: #333;
+            font-weight: 600;
+        }
+        
+        .freezing-mode {
+            background: #ffebee !important;
+            border-left-color: #f44336 !important;
+        }
+        
+        .circular-buffer {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 4px solid #4CAF50;
+        }
+        
+        .buffer-slots {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .buffer-slot {
+            aspect-ratio: 1;
+            background: white;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            transition: all 0.3s;
+            position: relative;
+        }
+        
+        .buffer-slot.valid {
+            background: #c8e6c9;
+            border-color: #4CAF50;
+        }
+        
+        .buffer-slot.head::before {
+            content: 'HEAD';
+            position: absolute;
+            top: -20px;
+            font-size: 10px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .ev-value {
+            font-weight: bold;
+            color: #333;
+            font-size: 16px;
+        }
+        
+        .network-diagram {
+            background: #f8f9fa;
+            padding: 30px;
+            border-radius: 10px;
+            position: relative;
+            min-height: 500px;
+        }
+        
+        .node {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            transition: all 0.3s;
+        }
+        
+        .sender {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            left: 50px;
+            top: 50%;
+            transform: translateY(-50%);
+            position: absolute;
+        }
+        
+        .receiver {
+            background: linear-gradient(135deg, #f093fb, #f5576c);
+            color: white;
+            right: 50px;
+            top: 50%;
+            transform: translateY(-50%);
+            position: absolute;
+        }
+        
+        .switch {
+            background: linear-gradient(135deg, #4facfe, #00f2fe);
+            color: white;
+            width: 60px;
+            height: 60px;
+            font-size: 12px;
+            position: absolute;
+        }
+        
+        .switch.failed {
+            background: linear-gradient(135deg, #f44336, #c62828);
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+        
+        .path {
+            position: absolute;
+            height: 3px;
+            background: #ddd;
+            transform-origin: left center;
+            transition: all 0.3s;
+        }
+        
+        .path.active {
+            background: #4CAF50;
+            height: 5px;
+            box-shadow: 0 0 10px #4CAF50;
+        }
+        
+        .path.failed {
+            background: #f44336;
+            animation: blink 0.5s infinite;
+        }
+        
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        
+        .packet {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #FF9800;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: bold;
+            color: white;
+        }
+        
+        .ack-packet {
+            background: #2196F3;
+        }
+        
+        .log-container {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .log-entry {
+            padding: 8px 12px;
+            margin-bottom: 5px;
+            background: white;
+            border-radius: 5px;
+            font-size: 13px;
+            border-left: 3px solid #667eea;
+            animation: slideIn 0.3s;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        .log-entry.error {
+            border-left-color: #f44336;
+            background: #ffebee;
+        }
+        
+        .log-entry.success {
+            border-left-color: #4CAF50;
+            background: #e8f5e9;
+        }
+        
+        .log-entry.warning {
+            border-left-color: #FF9800;
+            background: #fff3e0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>REPS Algorithm Visualization</h1>
+        <p class="subtitle">Reusing Entropy for Path Selection with Failure Mitigation</p>
+        
+        <div class="controls">
+            <button class="btn-send" onclick="sendPacket()">Send Packet</button>
+            <button class="btn-fail" onclick="failPath()">Fail Random Path</button>
+            <button class="btn-fix" onclick="fixAllPaths()">Fix All Paths</button>
+            <button class="btn-reset" onclick="resetSimulation()">Reset</button>
+        </div>
+        
+        <div class="main-layout">
+            <div class="left-panel">
+                <div class="status-box" id="statusBox">
+                    <h3>REPS Status</h3>
+                    <div class="status-item">
+                        <span class="status-label">Mode:</span>
+                        <span class="status-value" id="mode">Normal</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Valid EVs:</span>
+                        <span class="status-value" id="validEVs">0</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Explore Counter:</span>
+                        <span class="status-value" id="exploreCounter">8</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Packets Sent:</span>
+                        <span class="status-value" id="packetsSent">0</span>
+                    </div>
+                    <div class="status-item">
+                    	<span class="status-label">Freezing Timeout:</span>
+
+                        <span class="status-value" id="freezingTimeout">-</span>
+                      </div>
+                </div>
+                
+                <div class="circular-buffer">
+                    <h3>Circular Buffer (Size: 8)</h3>
+                    <div class="buffer-slots" id="bufferSlots"></div>
+                </div>
+            </div>
+            
+            <div class="network-diagram" id="networkDiagram">
+                <div class="node sender">Sender</div>
+                <div class="node receiver">Receiver</div>
+            </div>
+        </div>
+        
+        <div class="log-container">
+            <h3 style="margin-bottom: 15px; color: #333;">Event Log</h3>
+            <div id="logEntries"></div>
+        </div>
+    </div>
+
+    <script>
+        const BUFFER_SIZE = 8;
+        const NUM_SWITCHES = 10;
+        const FREEZING_TIMEOUT = 30000;
+        const CONGESTION_DROP_PROB = 0.05; // 5% chance packet is dropped due to congestion
+        const CONGESTION_ECN_PROB = 0.10;  // 10% chance ACK returns with ECN mark
+
+        
+        let state = {
+            buffer: Array(BUFFER_SIZE).fill(null).map(() => ({ ev: null, isValid: false })),
+            head: 0,
+            numberOfValidEVs: 0,
+            isFreezingMode: false,
+            exploreCounter: BUFFER_SIZE,
+            exitFreezingMode: null,
+            packetsSent: 0,
+            switches: [],
+            paths: []
+        };
+        
+        function initNetwork() {
+            const diagram = document.getElementById('networkDiagram');
+            const diagramWidth = diagram.offsetWidth;
+            const diagramHeight = diagram.offsetHeight;
+            
+            for (let i = 0; i < NUM_SWITCHES; i++) {
+                const switchDiv = document.createElement('div');
+                switchDiv.className = 'switch';
+                switchDiv.id = `switch${i}`;
+                switchDiv.textContent = `SW${i}`;
+                
+                const x = diagramWidth * 0.5;
+                const y = diagramHeight * 0.2 + (i * diagramHeight * 0.6 / (NUM_SWITCHES - 1));
+                switchDiv.style.left = `${x}px`;
+                switchDiv.style.top = `${y}px`;
+                switchDiv.style.transform = 'translate(-50%, -50%)';
+                
+                diagram.appendChild(switchDiv);
+                state.switches.push({ id: i, failed: false, element: switchDiv });
+                
+                createPath(130, diagramHeight / 2, x - 30, y, i, 'left');
+                createPath(x + 30, y, diagramWidth - 130, diagramHeight / 2, i, 'right');
+            }
+            
+            updateBufferDisplay();
+            updateStatus();
+        }
+        
+        function createPath(x1, y1, x2, y2, switchId, side) {
+            const path = document.createElement('div');
+            path.className = 'path';
+            path.id = `path-${switchId}-${side}`;
+            
+            const length = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+            const angle = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI;
+            
+            path.style.width = `${length}px`;
+            path.style.left = `${x1}px`;
+            path.style.top = `${y1}px`;
+            path.style.transform = `rotate(${angle}deg)`;
+            
+            document.getElementById('networkDiagram').appendChild(path);
+            state.paths.push({ element: path, switchId, side });
+        }
+        
+        function updateBufferDisplay() {
+        	console.log(state);
+            const container = document.getElementById('bufferSlots');
+            container.innerHTML = '';
+            
+            for (let i = 0; i < BUFFER_SIZE; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'buffer-slot';
+                
+                if (state.buffer[i].isValid) {
+                    slot.classList.add('valid');
+                }
+                
+                if (i === state.head) {
+                    slot.classList.add('head');
+                }
+                
+                const indexLabel = document.createElement('div');
+                indexLabel.textContent = `[${i}]`;
+                indexLabel.style.fontSize = '10px';
+                indexLabel.style.color = '#999';
+                slot.appendChild(indexLabel);
+                
+                if (state.buffer[i].ev !== null) {
+                    const evLabel = document.createElement('div');
+                    evLabel.className = 'ev-value';
+                    evLabel.textContent = `EV:${state.buffer[i].ev}`;
+                    slot.appendChild(evLabel);
+                }
+                
+                container.appendChild(slot);
+            }
+        }
+        
+        function updateStatus() {
+            document.getElementById('mode').textContent = state.isFreezingMode ? 'FREEZING' : 'Normal';
+            document.getElementById('validEVs').textContent = state.numberOfValidEVs;
+            document.getElementById('exploreCounter').textContent = state.exploreCounter;
+            document.getElementById('packetsSent').textContent = state.packetsSent;
+            
+            const statusBox = document.getElementById('statusBox');
+            if (state.isFreezingMode) {
+                statusBox.classList.add('freezing-mode');
+            } else {
+                statusBox.classList.remove('freezing-mode');
+            }
+        }
+        
+        function log(message, type = 'info') {
+            const logEntries = document.getElementById('logEntries');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logEntries.insertBefore(entry, logEntries.firstChild);
+            
+            if (logEntries.children.length > 50) {
+                logEntries.removeChild(logEntries.lastChild);
+            }
+        }
+        
+        function getNextEV() {
+            if (state.numberOfValidEVs > 0) {
+                let offset;
+                for (let i = 0; i < BUFFER_SIZE; i++) {
+                    if (state.buffer[(state.head + i) % BUFFER_SIZE].isValid) {
+                        offset = (state.head + i) % BUFFER_SIZE;
+                        break;
+                    }
+                }
+                // const offset = (state.head - state.numberOfValidEVs + BUFFER_SIZE) % BUFFER_SIZE;
+                state.head=offset;
+                state.buffer[offset].isValid = false;
+                state.numberOfValidEVs--;
+                log(`Reusing cached valid EV:${state.buffer[offset].ev} from buffer[${offset}]`, 'success');
+                return state.buffer[offset].ev;
+            } else {
+                // Must be in freezing mode - reuse invalid entries
+                const offset = state.head;
+                state.head = (state.head + 1) % BUFFER_SIZE;
+                const ev = state.buffer[offset].ev;
+                log(`Freezing mode: reusing invalid EV:${ev !== null ? ev : 'null'} from buffer[${offset}]`, 'warning');
+                return ev !== null ? ev : Math.floor(Math.random() * NUM_SWITCHES);
+            }
+        }
+        
+        function sendPacket() {
+            let ev;
+            
+            // Line 15-18: Check explore counter first
+            if (state.exploreCounter >= 0) {
+                state.exploreCounter--;
+                // Line 16-17: Only explore on specific intervals during warmup
+                if (state.exploreCounter >=0) {
+                    ev = Math.floor(Math.random() * NUM_SWITCHES);
+                    log(`Exploration: random EV:${ev} (counter=${state.exploreCounter})`, 'info');
+                } 
+            } 
+            // Line 19-20: Check if buffer is empty OR no valid EVs and not freezing
+            else if (state.buffer.every(slot => slot.ev === null) || 
+                     (state.numberOfValidEVs === 0 && !state.isFreezingMode)) {
+                ev = Math.floor(Math.random() * NUM_SWITCHES);
+                log(`No cached EVs available, not freezing: random EV:${ev}`, 'info');
+            } 
+            // Line 22: Use cached EV (either valid or invalid in freezing mode)
+            else {
+                ev = getNextEV();
+            }
+            
+            state.packetsSent++;
+            updateStatus();
+            updateBufferDisplay();
+            
+            animatePacket(ev);
+        }
+        
+        function animatePacket(ev) {
+            const switchInfo = state.switches[ev];
+            const diagram = document.getElementById('networkDiagram');
+            
+            // Create data packet
+            const packet = document.createElement('div');
+            packet.className = 'packet';
+            packet.textContent = ev;
+            
+            // Get sender position
+            const sender = diagram.querySelector('.sender');
+            const senderRect = sender.getBoundingClientRect();
+            const diagramRect = diagram.getBoundingClientRect();
+            
+            packet.style.left = `${senderRect.right - diagramRect.left + 10}px`;
+            packet.style.top = `${senderRect.top - diagramRect.top + senderRect.height / 2 - 10}px`;
+            packet.style.transition = 'none';
+            
+            diagram.appendChild(packet);
+            
+            // Highlight active paths
+            state.paths.forEach(p => p.element.classList.remove('active'));
+            const leftPath = document.getElementById(`path-${ev}-left`);
+            const rightPath = document.getElementById(`path-${ev}-right`);
+            if (leftPath) leftPath.classList.add('active');
+            if (rightPath) rightPath.classList.add('active');
+            
+            // Get switch position
+            const switchEl = switchInfo.element;
+            const switchRect = switchEl.getBoundingClientRect();
+            const switchX = switchRect.left - diagramRect.left + switchRect.width / 2 - 10;
+            const switchY = switchRect.top - diagramRect.top + switchRect.height / 2 - 10;
+            
+            // Animate to switch
+            setTimeout(() => {
+                packet.style.transition = 'all 0.8s ease-in-out';
+                packet.style.left = `${switchX}px`;
+                packet.style.top = `${switchY}px`;
+            }, 50);
+            
+            // Check if packet reaches switch successfully
+            setTimeout(() => {
+                if (switchInfo.failed) {
+                    // Packet dropped at failed switch
+                    log(`Packet dropped! Switch ${ev} is FAILED`, 'error');
+                    packet.style.background = '#f44336';
+                    packet.style.transform = 'scale(0)';
+                    onFailureDetection();
+                    setTimeout(() => {
+                        packet.remove();
+                        if (leftPath) leftPath.classList.remove('active');
+                        if (rightPath) rightPath.classList.remove('active');
+                    }, 500);
+                } else {
+                    // Packet continues to receiver
+                    const receiver = diagram.querySelector('.receiver');
+                    const receiverRect = receiver.getBoundingClientRect();
+                    const receiverX = receiverRect.left - diagramRect.left - 30;
+                    const receiverY = receiverRect.top - diagramRect.top + receiverRect.height / 2 - 10;
+                    
+                    packet.style.left = `${receiverX}px`;
+                    packet.style.top = `${receiverY}px`;
+                    if (Math.random() < CONGESTION_DROP_PROB) {
+                        log(`Packet dropped due to congestion at Switch ${ev}`, 'warning');
+                        packet.style.background = '#f44336';
+                        packet.style.transform = 'scale(0)';
+                        onFailureDetection();
+                        setTimeout(() => {
+                            packet.remove();
+                            if (leftPath) leftPath.classList.remove('active');
+                            if (rightPath) rightPath.classList.remove('active');
+                        }, 500);
+                        return;
+                    }
+                    setTimeout(() => {
+                        packet.remove();
+                        // Send ACK back
+                        const ecnMarked = Math.random() < CONGESTION_ECN_PROB;
+                        sendAck(ev, ecnMarked, switchX, switchY);
+                    }, 850);
+                }
+            }, 900);
+        }
+        
+        function sendAck(ev, ecnMarked, switchX, switchY) {
+            const diagram = document.getElementById('networkDiagram');
+            const diagramRect = diagram.getBoundingClientRect();
+            
+            // Create ACK packet
+            const ack = document.createElement('div');
+            ack.className = 'packet ack-packet';
+            ack.textContent = ev;
+            
+            // Start ACK from receiver
+            const receiver = diagram.querySelector('.receiver');
+            const receiverRect = receiver.getBoundingClientRect();
+            ack.style.left = `${receiverRect.left - diagramRect.left - 30}px`;
+            ack.style.top = `${receiverRect.top - diagramRect.top + receiverRect.height / 2 - 10}px`;
+            ack.style.transition = 'none';
+            if (ecnMarked) {
+                ack.style.border = "2px solid red";
+            }
+            
+            diagram.appendChild(ack);
+            
+            // Animate to switch
+            setTimeout(() => {
+                ack.style.transition = 'all 0.8s ease-in-out';
+                ack.style.left = `${switchX}px`;
+                ack.style.top = `${switchY}px`;
+            }, 50);
+            
+            // Then to sender
+            setTimeout(() => {
+                const sender = diagram.querySelector('.sender');
+                const senderRect = sender.getBoundingClientRect();
+                ack.style.left = `${senderRect.right - diagramRect.left + 10}px`;
+                ack.style.top = `${senderRect.top - diagramRect.top + senderRect.height / 2 - 10}px`;
+            }, 900);
+            
+            // Process ACK and cleanup
+            setTimeout(() => {
+                onAck(ev, ecnMarked);
+                ack.remove();
+                
+                // Remove path highlighting
+                state.paths.forEach(p => p.element.classList.remove('active'));
+            }, 1750);
+        }
+        
+        
+        function onAck(ev, ecnMarked) {
+            // Line 6-8: If ECN marked, discard and return
+            if (ecnMarked) {
+                log(`ACK received with ECN mark, discarding EV:${ev}`, 'warning');
+                // state.buffer[state.head].ev = ev;
+                // state.buffer[state.head].isValid = !ecnMarked;
+                // state.head = (state.head + 1) % BUFFER_SIZE;
+                return;
+            }
+            
+            // Line 9-11: Increment valid counter if slot wasn't already valid
+            if (!state.buffer[state.head].isValid) {
+                state.numberOfValidEVs++;
+            }
+            
+            // Line 12-14: Cache the EV and mark as valid, advance head
+            state.buffer[state.head].ev = ev;
+            state.buffer[state.head].isValid = !ecnMarked;
+            log(`ACK received, cached EV:${ev} at buffer[${state.head}] (validEVs=${state.numberOfValidEVs})`, 'success');
+            state.head = (state.head + 1) % BUFFER_SIZE;
+            
+            // Line 15-18: Check if should exit freezing mode
+            if (state.isFreezingMode && Date.now() > state.exitFreezingMode) {
+                state.isFreezingMode = false;
+                state.exploreCounter = BUFFER_SIZE;  // NUM_PKTS_CWND in the algorithm
+                log('Exiting freezing mode, resuming exploration', 'success');
+            }
+            
+            updateBufferDisplay();
+            updateStatus();
+        }
+        
+        function onFailureDetection() {
+            if (!state.isFreezingMode && state.exploreCounter <= 0) {
+                state.isFreezingMode = true;
+                state.exitFreezingMode = Date.now() + FREEZING_TIMEOUT;
+                log('ENTERING FREEZING MODE - Failure detected!', 'error');
+                updateStatus();
+            }
+        }
+        
+        function failPath() {
+            const healthySwitches = state.switches.filter(s => !s.failed);
+            if (healthySwitches.length === 0) {
+                log('All switches already failed!', 'warning');
+                return;
+            }
+            
+            const randomSwitch = healthySwitches[Math.floor(Math.random() * healthySwitches.length)];
+            randomSwitch.failed = true;
+            randomSwitch.element.classList.add('failed');
+            
+            state.paths.forEach(p => {
+                if (p.switchId === randomSwitch.id) {
+                    p.element.classList.add('failed');
+                }
+            });
+            
+            log(`Switch ${randomSwitch.id} has FAILED!`, 'error');
+        }
+        
+        function fixAllPaths() {
+            state.switches.forEach(s => {
+                s.failed = false;
+                s.element.classList.remove('failed');
+            });
+            
+            state.paths.forEach(p => {
+                p.element.classList.remove('failed');
+            });
+            
+            log('All paths fixed', 'success');
+        }
+        
+        function resetSimulation() {
+            state = {
+                buffer: Array(BUFFER_SIZE).fill(null).map(() => ({ ev: null, isValid: false })),
+                head: 0,
+                numberOfValidEVs: 0,
+                isFreezingMode: false,
+                exploreCounter: BUFFER_SIZE,
+                exitFreezingMode: null,
+                packetsSent: 0,
+                switches: state.switches,
+                paths: state.paths
+            };
+            
+            fixAllPaths();
+            updateBufferDisplay();
+            updateStatus();
+            document.getElementById('logEntries').innerHTML = '';
+            log('Simulation reset', 'info');
+        }
+        setInterval(()=>{
+        document.getElementById("freezingTimeout").innerText = state.exitFreezingMode - Date.now()
+        })
+        
+        initNetwork();
+        log('REPS simulation initialized', 'info');
+    </script>
+</body>
+</html>
