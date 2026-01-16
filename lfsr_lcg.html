@@ -1,0 +1,224 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>LFSR Simulator (Fibonacci)</title>
+  <style>
+    body { font-family: system-ui, Arial; padding: 18px; }
+    input, button, textarea { font-size: 14px; margin: 4px 0; }
+    table { border-collapse: collapse; margin-top: 12px; }
+    td, th { border: 1px solid #ccc; padding: 6px 8px; text-align: center; }
+    .mono { font-family: monospace; }
+  </style>
+</head>
+<body>
+  <h2>LFSR Simulator (Fibonacci)</h2>
+  <div>
+    <label>Connection polynomial (e.g. <code>1 + D + D^3</code>):</label><br/>
+    <input id="poly" value="1 + D + D^3" size="30"/>
+  </div>
+  <div>
+    <label>Initial state (MSB...LSB, bitstring):</label><br/>
+    <input id="init" value="110" size="20"/>
+  </div>
+  <div>
+    <label>Steps to simulate (leave blank to auto-limit):</label><br/>
+    <input id="steps" size="8" placeholder="e.g. 20"/>
+  </div>
+  <div>
+    <label><input type="checkbox" id="detect"/> Detect period and stop when state repeats</label>
+  </div>
+  <div>
+    <button id="run">Run</button>
+    <button id="clear">Clear table</button>
+  </div>
+
+  <div id="out"></div>
+
+<script>
+function parsePoly(polyStr) {
+  polyStr = polyStr.replace(/\s+/g,'').toUpperCase();
+  if (!polyStr.startsWith('1')) throw "Polynomial must include constant term '1'.";
+  let re = /D(?:\^(\d+))?/g;
+  let m; let degs = new Set();
+  while ((m = re.exec(polyStr)) !== null) {
+    if (m[1] === undefined) degs.add(1);
+    else degs.add(parseInt(m[1],10));
+  }
+  return Array.from(degs).sort((a,b)=>a-b);
+}
+
+function stepFibonacci(state, taps) {
+  // state: array [D_{L-1},...,D0]
+  let L = state.length;
+  let fb = 0;
+  for (let i of taps) {
+    if (i >= 1 && i <= L) {
+      let bit = state[L - i]; // D_{i-1} located at index L-i
+      fb ^= bit;
+    }
+  }
+  let output = state[state.length-1];
+  let newstate = [fb].concat(state.slice(0, state.length-1));
+  return {newstate, output};
+}
+
+function runSim(initStr, polyStr, steps, detect) {
+  if (!/^[01]+$/.test(initStr)) throw "Initial state must be a bitstring like 1101";
+  let state = initStr.split('').map(x=>+x);
+  const L = state.length;
+  let taps = parsePoly(polyStr).filter(i => i>=1 && i<=L);
+  let seen = {};
+  let table = [];
+  let maxSteps = steps || (detect ? Math.pow(2,L)+5 : 16*L);
+  let step = 0;
+  while (true) {
+    table.push({step, state: state.slice()});
+    if (detect) {
+      let s = state.join('');
+      if (seen[s] !== undefined) {
+        return {table, period: step - seen[s]};
+      }
+      seen[s] = step;
+    }
+    step++;
+    if (step > maxSteps) return {table, period: null};
+    let res = stepFibonacci(state, taps);
+    state = res.newstate;
+  }
+}
+
+document.getElementById('run').addEventListener('click', ()=>{
+  const poly = document.getElementById('poly').value;
+  const init = document.getElementById('init').value.trim();
+  const stepsVal = document.getElementById('steps').value.trim();
+  const detect = document.getElementById('detect').checked;
+  let steps = stepsVal === '' ? null : parseInt(stepsVal,10);
+  try {
+    const result = runSim(init, poly, steps, detect);
+    const table = result.table;
+    const out = document.getElementById('out');
+    out.innerHTML = '';
+    // header
+    const L = init.length;
+    const tableEl = document.createElement('table');
+    const header = document.createElement('tr');
+    header.innerHTML = '<th>Step</th>' + Array.from({length:L}, (_,i)=>`<th>D_${L-1-i}</th>`).join('');
+    tableEl.appendChild(header);
+    for (const row of table) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${row.step}</td>` + row.state.map(b=>`<td class="mono">${b}</td>`).join('');
+      tableEl.appendChild(tr);
+    }
+    out.appendChild(tableEl);
+    if (detect) {
+      const p = document.createElement('div');
+      p.style.marginTop = '8px';
+      p.textContent = result.period === null ? "No repeat detected within step limit." : `Detected period: ${result.period}`;
+      out.appendChild(p);
+    }
+  } catch (e) {
+    alert("Error: " + e);
+  }
+});
+
+document.getElementById('clear').addEventListener('click', ()=>{
+  document.getElementById('out').innerHTML = '';
+});
+</script>
+</body>
+</html>
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>LCG PRG Simulator</title>
+  <style>
+    body { font-family: system-ui, sans-serif; padding: 18px; }
+    input, button { margin: 4px; padding: 4px; }
+    table { border-collapse: collapse; margin-top: 12px; }
+    td, th { border: 1px solid #aaa; padding: 6px 10px; text-align: center; }
+  </style>
+</head>
+<body>
+  <h2>LCG-based PRG Simulator</h2>
+
+  <div>
+    <label>Modulus m:</label>
+    <input id="m" value="16" size="10"><br>
+    <label>Multiplier a:</label>
+    <input id="a" value="5" size="10"><br>
+    <label>Increment c:</label>
+    <input id="c" value="1" size="10"><br>
+    <label>Seed X0:</label>
+    <input id="seed" value="3" size="10"><br>
+    <label>Steps:</label>
+    <input id="steps" placeholder="blank=default" size="10"><br>
+    <label><input type="checkbox" id="detect"> Detect period</label><br>
+    <button id="run">Run</button>
+    <button id="clear">Clear</button>
+  </div>
+
+  <div id="out"></div>
+
+<script>
+function simulateLCG(seed, a, c, m, steps, detect) {
+  let seq = [];
+  let seen = {};
+  let x = seed;
+  let step = 0;
+  let maxSteps = steps || (detect ? m + 5 : 100);
+  while (true) {
+    seq.push({step, x});
+    if (detect) {
+      if (seen[x] !== undefined) {
+        return {seq, period: step - seen[x]};
+      }
+      seen[x] = step;
+    }
+    step++;
+    if (step > maxSteps) return {seq, period: null};
+    x = (a * x + c) % m;
+  }
+}
+
+document.getElementById("run").addEventListener("click", ()=>{
+  const m = parseInt(document.getElementById("m").value);
+  const a = parseInt(document.getElementById("a").value);
+  const c = parseInt(document.getElementById("c").value);
+  const seed = parseInt(document.getElementById("seed").value);
+  const stepsVal = document.getElementById("steps").value.trim();
+  const steps = stepsVal === "" ? null : parseInt(stepsVal, 10);
+  const detect = document.getElementById("detect").checked;
+
+  const res = simulateLCG(seed, a, c, m, steps, detect);
+  const table = document.createElement("table");
+  const header = document.createElement("tr");
+  header.innerHTML = "<th>Step</th><th>Xn</th>";
+  table.appendChild(header);
+
+  for (const row of res.seq) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${row.step}</td><td>${row.x}</td>`;
+    table.appendChild(tr);
+  }
+
+  const out = document.getElementById("out");
+  out.innerHTML = "";
+  out.appendChild(table);
+
+  if (detect) {
+    const p = document.createElement("p");
+    p.textContent = res.period === null
+      ? "No period detected within limit"
+      : "Detected period: " + res.period;
+    out.appendChild(p);
+  }
+});
+
+document.getElementById("clear").addEventListener("click", ()=>{
+  document.getElementById("out").innerHTML = "";
+});
+</script>
+</body>
+</html>
