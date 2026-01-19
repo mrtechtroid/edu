@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wilson's Maze Algorithm</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+            display: flex;
+            gap: 20px;
+            min-height: 100vh;
+        }
+        
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            width: 280px;
+            height: fit-content;
+        }
+        
+        .canvas-container {
+            flex: 1;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        h1 {
+            font-size: 20px;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        
+        .control-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 13px;
+            color: #555;
+            font-weight: 500;
+        }
+        
+        input[type="number"],
+        input[type="range"],
+        select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        input[type="range"] {
+            padding: 0;
+        }
+        
+        .range-value {
+            text-align: right;
+            font-size: 12px;
+            color: #888;
+            margin-top: 4px;
+        }
+        
+        button {
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            margin-bottom: 8px;
+            transition: background 0.2s;
+        }
+        
+        button.primary {
+            background: #2563eb;
+            color: white;
+        }
+        
+        button.primary:hover {
+            background: #1d4ed8;
+        }
+        
+        button.secondary {
+            background: #e5e7eb;
+            color: #333;
+        }
+        
+        button.secondary:hover {
+            background: #d1d5db;
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        canvas {
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+        }
+        
+        .color-input {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        input[type="color"] {
+            width: 50px;
+            height: 32px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <h1>Wilson's Algorithm</h1>
+        
+        <div class="control-group">
+            <label>Grid Size</label>
+            <input type="number" id="gridSize" value="20" min="5" max="100">
+        </div>
+        
+        <div class="control-group">
+            <label>Cell Size</label>
+            <input type="range" id="cellSize" value="20" min="5" max="50">
+            <div class="range-value"><span id="cellSizeValue">20</span>px</div>
+        </div>
+        
+        <div class="control-group">
+            <label>Animation Speed</label>
+            <select id="speed">
+                <option value="0">Instant</option>
+                <option value="100">Very Fast</option>
+                <option value="50" selected>Fast</option>
+                <option value="20">Normal</option>
+                <option value="5">Slow</option>
+            </select>
+        </div>
+        
+        <div class="control-group">
+            <label>Wall Color</label>
+            <div class="color-input">
+                <input type="color" id="wallColor" value="#000000">
+            </div>
+        </div>
+        
+        <div class="control-group">
+            <label>Path Color</label>
+            <div class="color-input">
+                <input type="color" id="pathColor" value="#ffffff">
+            </div>
+        </div>
+        
+        <div class="control-group">
+            <label>Current Path Color</label>
+            <div class="color-input">
+                <input type="color" id="currentColor" value="#3b82f6">
+            </div>
+        </div>
+        
+        <button class="primary" id="generateBtn">Generate Maze</button>
+        <button class="secondary" id="exportBtn">Export as Matrix</button>
+    </div>
+    
+    <div class="canvas-container">
+        <canvas id="mazeCanvas"></canvas>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('mazeCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        let gridSize = 20;
+        let cellSize = 20;
+        let animationSpeed = 50;
+        let maze = [];
+        let isGenerating = false;
+        
+        // Color settings
+        let wallColor = '#000000';
+        let pathColor = '#ffffff';
+        let currentColor = '#3b82f6';
+        
+        // Directions: [row, col]
+        const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+        
+        // Initialize maze grid
+        function initMaze() {
+            maze = Array(gridSize).fill().map(() => 
+                Array(gridSize).fill().map(() => ({
+                    visited: false,
+                    walls: [true, true, true, true] // top, right, bottom, left
+                }))
+            );
+        }
+        
+        // Set up canvas
+        function setupCanvas() {
+            const size = gridSize * cellSize;
+            canvas.width = size;
+            canvas.height = size;
+            ctx.fillStyle = pathColor;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+        
+        // Draw the maze
+        function drawMaze(currentPath = []) {
+            ctx.fillStyle = pathColor;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw current path
+            if (currentPath.length > 0) {
+                ctx.fillStyle = currentColor;
+                for (const [r, c] of currentPath) {
+                    ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
+                }
+            }
+            
+            // Draw walls
+            ctx.strokeStyle = wallColor;
+            ctx.lineWidth = 2;
+            
+            for (let r = 0; r < gridSize; r++) {
+                for (let c = 0; c < gridSize; c++) {
+                    const cell = maze[r][c];
+                    const x = c * cellSize;
+                    const y = r * cellSize;
+                    
+                    if (cell.walls[0]) { // top
+                        ctx.beginPath();
+                        ctx.moveTo(x, y);
+                        ctx.lineTo(x + cellSize, y);
+                        ctx.stroke();
+                    }
+                    if (cell.walls[1]) { // right
+                        ctx.beginPath();
+                        ctx.moveTo(x + cellSize, y);
+                        ctx.lineTo(x + cellSize, y + cellSize);
+                        ctx.stroke();
+                    }
+                    if (cell.walls[2]) { // bottom
+                        ctx.beginPath();
+                        ctx.moveTo(x, y + cellSize);
+                        ctx.lineTo(x + cellSize, y + cellSize);
+                        ctx.stroke();
+                    }
+                    if (cell.walls[3]) { // left
+                        ctx.beginPath();
+                        ctx.moveTo(x, y);
+                        ctx.lineTo(x, y + cellSize);
+                        ctx.stroke();
+                    }
+                }
+            }
+        }
+        
+        // Remove wall between two cells
+        function removeWall(r1, c1, r2, c2) {
+            const dr = r2 - r1;
+            const dc = c2 - c1;
+            
+            if (dr === -1) { // moving up
+                maze[r1][c1].walls[0] = false;
+                maze[r2][c2].walls[2] = false;
+            } else if (dr === 1) { // moving down
+                maze[r1][c1].walls[2] = false;
+                maze[r2][c2].walls[0] = false;
+            } else if (dc === -1) { // moving left
+                maze[r1][c1].walls[3] = false;
+                maze[r2][c2].walls[1] = false;
+            } else if (dc === 1) { // moving right
+                maze[r1][c1].walls[1] = false;
+                maze[r2][c2].walls[3] = false;
+            }
+        }
+        
+        // Get unvisited neighbors
+        function getNeighbors(r, c) {
+            const neighbors = [];
+            for (const [dr, dc] of dirs) {
+                const nr = r + dr;
+                const nc = c + dc;
+                if (nr >= 0 && nr < gridSize && nc >= 0 && nc < gridSize) {
+                    neighbors.push([nr, nc]);
+                }
+            }
+            return neighbors;
+        }
+        
+        // Perform random walk until hitting visited cell
+        function randomWalk(startR, startC) {
+            const path = [[startR, startC]];
+            const pathSet = new Set([`${startR},${startC}`]);
+            let r = startR, c = startC;
+            
+            while (!maze[r][c].visited) {
+                const neighbors = getNeighbors(r, c);
+                const [nr, nc] = neighbors[Math.floor(Math.random() * neighbors.length)];
+                
+                const key = `${nr},${nc}`;
+                
+                // If we've looped back, erase the loop
+                if (pathSet.has(key)) {
+                    while (path.length > 0) {
+                        const [pr, pc] = path.pop();
+                        pathSet.delete(`${pr},${pc}`);
+                        if (pr === nr && pc === nc) {
+                            path.push([nr, nc]);
+                            pathSet.add(key);
+                            break;
+                        }
+                    }
+                } else {
+                    path.push([nr, nc]);
+                    pathSet.add(key);
+                }
+                
+                r = nr;
+                c = nc;
+            }
+            
+            return path;
+        }
+        
+        // Wilson's algorithm with animation
+        async function generateWilson() {
+            initMaze();
+            setupCanvas();
+            
+            // Mark random cell as visited
+            const startR = Math.floor(Math.random() * gridSize);
+            const startC = Math.floor(Math.random() * gridSize);
+            maze[startR][startC].visited = true;
+            
+            drawMaze();
+            
+            // Get list of unvisited cells
+            const unvisited = [];
+            for (let r = 0; r < gridSize; r++) {
+                for (let c = 0; c < gridSize; c++) {
+                    if (!maze[r][c].visited) {
+                        unvisited.push([r, c]);
+                    }
+                }
+            }
+            
+            // Process each unvisited cell
+            while (unvisited.length > 0) {
+                const idx = Math.floor(Math.random() * unvisited.length);
+                const [r, c] = unvisited[idx];
+                
+                if (maze[r][c].visited) {
+                    unvisited.splice(idx, 1);
+                    continue;
+                }
+                
+                // Perform random walk
+                const path = randomWalk(r, c);
+                
+                // Animate the walk
+                if (animationSpeed > 0) {
+                    drawMaze(path);
+                    await new Promise(resolve => setTimeout(resolve, animationSpeed));
+                }
+                
+                // Carve the path
+                for (let i = 0; i < path.length - 1; i++) {
+                    const [r1, c1] = path[i];
+                    const [r2, c2] = path[i + 1];
+                    removeWall(r1, c1, r2, c2);
+                    maze[r1][c1].visited = true;
+                }
+                
+                // Remove newly visited cells from unvisited list
+                for (let i = unvisited.length - 1; i >= 0; i--) {
+                    const [ur, uc] = unvisited[i];
+                    if (maze[ur][uc].visited) {
+                        unvisited.splice(i, 1);
+                    }
+                }
+                
+                drawMaze();
+            }
+        }
+        
+        // Export maze as matrix
+        function exportMatrix() {
+            // Create a matrix where 0 = path, 1 = wall
+            const matrixSize = gridSize * 2 + 1;
+            const matrix = Array(matrixSize).fill().map(() => Array(matrixSize).fill(1));
+            
+            for (let r = 0; r < gridSize; r++) {
+                for (let c = 0; c < gridSize; c++) {
+                    const mr = r * 2 + 1;
+                    const mc = c * 2 + 1;
+                    matrix[mr][mc] = 0; // cell itself
+                    
+                    const cell = maze[r][c];
+                    if (!cell.walls[0]) matrix[mr - 1][mc] = 0; // top
+                    if (!cell.walls[1]) matrix[mr][mc + 1] = 0; // right
+                    if (!cell.walls[2]) matrix[mr + 1][mc] = 0; // bottom
+                    if (!cell.walls[3]) matrix[mr][mc - 1] = 0; // left
+                }
+            }
+            
+            const text = matrix.map(row => row.join(' ')).join('\n');
+            const blob = new Blob([text], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'maze_matrix.txt';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        
+        // Event listeners
+        document.getElementById('generateBtn').addEventListener('click', async () => {
+            if (isGenerating) return;
+            isGenerating = true;
+            document.getElementById('generateBtn').disabled = true;
+            await generateWilson();
+            isGenerating = false;
+            document.getElementById('generateBtn').disabled = false;
+        });
+        
+        document.getElementById('exportBtn').addEventListener('click', () => {
+            if (maze.length === 0) {
+                alert('Generate a maze first!');
+                return;
+            }
+            exportMatrix();
+        });
+        
+        document.getElementById('gridSize').addEventListener('change', (e) => {
+            gridSize = parseInt(e.target.value);
+        });
+        
+        document.getElementById('cellSize').addEventListener('input', (e) => {
+            cellSize = parseInt(e.target.value);
+            document.getElementById('cellSizeValue').textContent = cellSize;
+        });
+        
+        document.getElementById('speed').addEventListener('change', (e) => {
+            animationSpeed = parseInt(e.target.value);
+        });
+        
+        document.getElementById('wallColor').addEventListener('change', (e) => {
+            wallColor = e.target.value;
+            drawMaze();
+        });
+        
+        document.getElementById('pathColor').addEventListener('change', (e) => {
+            pathColor = e.target.value;
+            drawMaze();
+        });
+        
+        document.getElementById('currentColor').addEventListener('change', (e) => {
+            currentColor = e.target.value;
+        });
+        
+        // Initialize
+        initMaze();
+        setupCanvas();
+        drawMaze();
+    </script>
+</body>
+</html>
