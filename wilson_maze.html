@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wilson's Maze Algorithm</title>
+    <title>Wilson's Maze Algorithm with Pathfinding</title>
     <style>
         * {
             margin: 0;
@@ -25,7 +25,7 @@
             padding: 20px;
             border-radius: 8px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            width: 280px;
+            width: 300px;
             height: fit-content;
         }
         
@@ -44,6 +44,14 @@
             font-size: 20px;
             margin-bottom: 20px;
             color: #333;
+        }
+        
+        h2 {
+            font-size: 16px;
+            margin: 20px 0 10px 0;
+            color: #555;
+            border-top: 1px solid #e5e7eb;
+            padding-top: 15px;
         }
         
         .control-group {
@@ -101,11 +109,20 @@
         }
         
         button.secondary {
+            background: #10b981;
+            color: white;
+        }
+        
+        button.secondary:hover {
+            background: #059669;
+        }
+        
+        button.tertiary {
             background: #e5e7eb;
             color: #333;
         }
         
-        button.secondary:hover {
+        button.tertiary:hover {
             background: #d1d5db;
         }
         
@@ -117,6 +134,7 @@
         canvas {
             border: 1px solid #e5e7eb;
             border-radius: 4px;
+            cursor: crosshair;
         }
         
         .color-input {
@@ -131,6 +149,28 @@
             border: 1px solid #ddd;
             border-radius: 4px;
             cursor: pointer;
+        }
+        
+        .info-text {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+            font-style: italic;
+        }
+        
+        .mode-indicator {
+            padding: 8px 12px;
+            background: #f3f4f6;
+            border-radius: 4px;
+            font-size: 13px;
+            text-align: center;
+            margin-bottom: 10px;
+            font-weight: 500;
+        }
+        
+        .mode-indicator.active {
+            background: #dbeafe;
+            color: #1e40af;
         }
     </style>
 </head>
@@ -160,6 +200,32 @@
             </select>
         </div>
         
+        <button class="primary" id="generateBtn">Generate Maze</button>
+        
+        <h2>Entrance & Exit</h2>
+        
+        <div class="mode-indicator" id="modeIndicator">Click on maze to set points</div>
+        
+        <button class="secondary" id="setEntranceBtn">Set Entrance</button>
+        <button class="secondary" id="setExitBtn">Set Exit</button>
+        <button class="tertiary" id="clearPointsBtn">Clear Points</button>
+        
+        <h2>Pathfinding</h2>
+        
+        <div class="control-group">
+            <label>Algorithm</label>
+            <select id="algorithm">
+                <option value="astar">A* (Optimal)</option>
+                <option value="dijkstra">Dijkstra</option>
+                <option value="bfs">BFS</option>
+            </select>
+        </div>
+        
+        <button class="secondary" id="findPathBtn">Find Path</button>
+        <button class="tertiary" id="clearPathBtn">Clear Path</button>
+        
+        <h2>Colors</h2>
+        
         <div class="control-group">
             <label>Wall Color</label>
             <div class="color-input">
@@ -181,8 +247,28 @@
             </div>
         </div>
         
-        <button class="primary" id="generateBtn">Generate Maze</button>
-        <button class="secondary" id="exportBtn">Export as Matrix</button>
+        <div class="control-group">
+            <label>Solution Path Color</label>
+            <div class="color-input">
+                <input type="color" id="solutionColor" value="#10b981">
+            </div>
+        </div>
+        
+        <div class="control-group">
+            <label>Entrance Color</label>
+            <div class="color-input">
+                <input type="color" id="entranceColor" value="#22c55e">
+            </div>
+        </div>
+        
+        <div class="control-group">
+            <label>Exit Color</label>
+            <div class="color-input">
+                <input type="color" id="exitColor" value="#ef4444">
+            </div>
+        </div>
+        
+        <button class="tertiary" id="exportBtn">Export as Matrix</button>
     </div>
     
     <div class="canvas-container">
@@ -199,10 +285,19 @@
         let maze = [];
         let isGenerating = false;
         
+        // Entrance and exit points
+        let entrance = null;
+        let exit = null;
+        let settingMode = null; // 'entrance' or 'exit'
+        let solutionPath = [];
+        
         // Color settings
         let wallColor = '#000000';
         let pathColor = '#ffffff';
         let currentColor = '#3b82f6';
+        let solutionColor = '#10b981';
+        let entranceColor = '#22c55e';
+        let exitColor = '#ef4444';
         
         // Directions: [row, col]
         const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
@@ -215,6 +310,9 @@
                     walls: [true, true, true, true] // top, right, bottom, left
                 }))
             );
+            entrance = null;
+            exit = null;
+            solutionPath = [];
         }
         
         // Set up canvas
@@ -231,12 +329,42 @@
             ctx.fillStyle = pathColor;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
-            // Draw current path
+            // Draw solution path
+            if (solutionPath.length > 0) {
+                ctx.fillStyle = solutionColor;
+                for (const [r, c] of solutionPath) {
+                    ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
+                }
+            }
+            
+            // Draw current path (during generation)
             if (currentPath.length > 0) {
                 ctx.fillStyle = currentColor;
                 for (const [r, c] of currentPath) {
                     ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
                 }
+            }
+            
+            // Draw entrance
+            if (entrance) {
+                ctx.fillStyle = entranceColor;
+                ctx.fillRect(entrance.c * cellSize, entrance.r * cellSize, cellSize, cellSize);
+                ctx.fillStyle = '#fff';
+                ctx.font = `${cellSize * 0.6}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('S', entrance.c * cellSize + cellSize / 2, entrance.r * cellSize + cellSize / 2);
+            }
+            
+            // Draw exit
+            if (exit) {
+                ctx.fillStyle = exitColor;
+                ctx.fillRect(exit.c * cellSize, exit.r * cellSize, cellSize, cellSize);
+                ctx.fillStyle = '#fff';
+                ctx.font = `${cellSize * 0.6}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('E', exit.c * cellSize + cellSize / 2, exit.r * cellSize + cellSize / 2);
             }
             
             // Draw walls
@@ -307,6 +435,20 @@
                     neighbors.push([nr, nc]);
                 }
             }
+            return neighbors;
+        }
+        
+        // Get accessible neighbors (no wall between)
+        function getAccessibleNeighbors(r, c) {
+            const neighbors = [];
+            const cell = maze[r][c];
+            
+            // Check each direction
+            if (!cell.walls[0] && r > 0) neighbors.push([r - 1, c]); // top
+            if (!cell.walls[1] && c < gridSize - 1) neighbors.push([r, c + 1]); // right
+            if (!cell.walls[2] && r < gridSize - 1) neighbors.push([r + 1, c]); // bottom
+            if (!cell.walls[3] && c > 0) neighbors.push([r, c - 1]); // left
+            
             return neighbors;
         }
         
@@ -406,6 +548,162 @@
             }
         }
         
+        // A* pathfinding algorithm
+        function findPathAStar(startR, startC, endR, endC) {
+            const openSet = new Set([`${startR},${startC}`]);
+            const cameFrom = new Map();
+            const gScore = new Map();
+            const fScore = new Map();
+            
+            gScore.set(`${startR},${startC}`, 0);
+            fScore.set(`${startR},${startC}`, heuristic(startR, startC, endR, endC));
+            
+            while (openSet.size > 0) {
+                // Find node with lowest fScore
+                let current = null;
+                let lowestF = Infinity;
+                for (const node of openSet) {
+                    const f = fScore.get(node) || Infinity;
+                    if (f < lowestF) {
+                        lowestF = f;
+                        current = node;
+                    }
+                }
+                
+                const [r, c] = current.split(',').map(Number);
+                
+                if (r === endR && c === endC) {
+                    return reconstructPath(cameFrom, current);
+                }
+                
+                openSet.delete(current);
+                
+                const neighbors = getAccessibleNeighbors(r, c);
+                for (const [nr, nc] of neighbors) {
+                    const neighbor = `${nr},${nc}`;
+                    const tentativeG = (gScore.get(current) || Infinity) + 1;
+                    
+                    if (tentativeG < (gScore.get(neighbor) || Infinity)) {
+                        cameFrom.set(neighbor, current);
+                        gScore.set(neighbor, tentativeG);
+                        fScore.set(neighbor, tentativeG + heuristic(nr, nc, endR, endC));
+                        openSet.add(neighbor);
+                    }
+                }
+            }
+            
+            return null; // No path found
+        }
+        
+        // Dijkstra's algorithm
+        function findPathDijkstra(startR, startC, endR, endC) {
+            const visited = new Set();
+            const distances = new Map();
+            const cameFrom = new Map();
+            const queue = [[startR, startC, 0]];
+            
+            distances.set(`${startR},${startC}`, 0);
+            
+            while (queue.length > 0) {
+                queue.sort((a, b) => a[2] - b[2]);
+                const [r, c, dist] = queue.shift();
+                const current = `${r},${c}`;
+                
+                if (visited.has(current)) continue;
+                visited.add(current);
+                
+                if (r === endR && c === endC) {
+                    return reconstructPath(cameFrom, current);
+                }
+                
+                const neighbors = getAccessibleNeighbors(r, c);
+                for (const [nr, nc] of neighbors) {
+                    const neighbor = `${nr},${nc}`;
+                    if (visited.has(neighbor)) continue;
+                    
+                    const newDist = dist + 1;
+                    if (newDist < (distances.get(neighbor) || Infinity)) {
+                        distances.set(neighbor, newDist);
+                        cameFrom.set(neighbor, current);
+                        queue.push([nr, nc, newDist]);
+                    }
+                }
+            }
+            
+            return null;
+        }
+        
+        // BFS pathfinding
+        function findPathBFS(startR, startC, endR, endC) {
+            const visited = new Set();
+            const queue = [[startR, startC]];
+            const cameFrom = new Map();
+            
+            visited.add(`${startR},${startC}`);
+            
+            while (queue.length > 0) {
+                const [r, c] = queue.shift();
+                
+                if (r === endR && c === endC) {
+                    return reconstructPath(cameFrom, `${r},${c}`);
+                }
+                
+                const neighbors = getAccessibleNeighbors(r, c);
+                for (const [nr, nc] of neighbors) {
+                    const neighbor = `${nr},${nc}`;
+                    if (!visited.has(neighbor)) {
+                        visited.add(neighbor);
+                        cameFrom.set(neighbor, `${r},${c}`);
+                        queue.push([nr, nc]);
+                    }
+                }
+            }
+            
+            return null;
+        }
+        
+        // Heuristic function (Manhattan distance)
+        function heuristic(r1, c1, r2, c2) {
+            return Math.abs(r1 - r2) + Math.abs(c1 - c2);
+        }
+        
+        // Reconstruct path from cameFrom map
+        function reconstructPath(cameFrom, current) {
+            const path = [];
+            while (current) {
+                const [r, c] = current.split(',').map(Number);
+                path.unshift([r, c]);
+                current = cameFrom.get(current);
+            }
+            return path;
+        }
+        
+        // Find path using selected algorithm
+        function findPath() {
+            if (!entrance || !exit) {
+                alert('Please set both entrance and exit points first!');
+                return;
+            }
+            
+            const algorithm = document.getElementById('algorithm').value;
+            let path = null;
+            
+            if (algorithm === 'astar') {
+                path = findPathAStar(entrance.r, entrance.c, exit.r, exit.c);
+            } else if (algorithm === 'dijkstra') {
+                path = findPathDijkstra(entrance.r, entrance.c, exit.r, exit.c);
+            } else if (algorithm === 'bfs') {
+                path = findPathBFS(entrance.r, entrance.c, exit.r, exit.c);
+            }
+            
+            if (path) {
+                solutionPath = path;
+                drawMaze();
+            } else {
+                alert('No path found between entrance and exit!');
+            }
+        }
+        
         // Export maze as matrix
         function exportMatrix() {
             // Create a matrix where 0 = path, 1 = wall
@@ -436,6 +734,49 @@
             URL.revokeObjectURL(url);
         }
         
+        // Update mode indicator
+        function updateModeIndicator() {
+            const indicator = document.getElementById('modeIndicator');
+            if (settingMode === 'entrance') {
+                indicator.textContent = 'Click to set entrance point';
+                indicator.classList.add('active');
+            } else if (settingMode === 'exit') {
+                indicator.textContent = 'Click to set exit point';
+                indicator.classList.add('active');
+            } else {
+                indicator.textContent = 'Click on maze to set points';
+                indicator.classList.remove('active');
+            }
+        }
+        
+        // Canvas click handler
+        canvas.addEventListener('click', (e) => {
+            if (maze.length === 0) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            const c = Math.floor(x / cellSize);
+            const r = Math.floor(y / cellSize);
+            
+            if (r >= 0 && r < gridSize && c >= 0 && c < gridSize) {
+                if (settingMode === 'entrance') {
+                    entrance = { r, c };
+                    settingMode = null;
+                    updateModeIndicator();
+                    solutionPath = [];
+                    drawMaze();
+                } else if (settingMode === 'exit') {
+                    exit = { r, c };
+                    settingMode = null;
+                    updateModeIndicator();
+                    solutionPath = [];
+                    drawMaze();
+                }
+            }
+        });
+        
         // Event listeners
         document.getElementById('generateBtn').addEventListener('click', async () => {
             if (isGenerating) return;
@@ -444,6 +785,34 @@
             await generateWilson();
             isGenerating = false;
             document.getElementById('generateBtn').disabled = false;
+        });
+        
+        document.getElementById('setEntranceBtn').addEventListener('click', () => {
+            settingMode = 'entrance';
+            updateModeIndicator();
+        });
+        
+        document.getElementById('setExitBtn').addEventListener('click', () => {
+            settingMode = 'exit';
+            updateModeIndicator();
+        });
+        
+        document.getElementById('clearPointsBtn').addEventListener('click', () => {
+            entrance = null;
+            exit = null;
+            solutionPath = [];
+            settingMode = null;
+            updateModeIndicator();
+            drawMaze();
+        });
+        
+        document.getElementById('findPathBtn').addEventListener('click', () => {
+            findPath();
+        });
+        
+        document.getElementById('clearPathBtn').addEventListener('click', () => {
+            solutionPath = [];
+            drawMaze();
         });
         
         document.getElementById('exportBtn').addEventListener('click', () => {
@@ -481,10 +850,26 @@
             currentColor = e.target.value;
         });
         
+        document.getElementById('solutionColor').addEventListener('change', (e) => {
+            solutionColor = e.target.value;
+            drawMaze();
+        });
+        
+        document.getElementById('entranceColor').addEventListener('change', (e) => {
+            entranceColor = e.target.value;
+            drawMaze();
+        });
+        
+        document.getElementById('exitColor').addEventListener('change', (e) => {
+            exitColor = e.target.value;
+            drawMaze();
+        });
+        
         // Initialize
         initMaze();
         setupCanvas();
         drawMaze();
+        updateModeIndicator();
     </script>
 </body>
 </html>
