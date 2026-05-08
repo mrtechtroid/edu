@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maze</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;display:flex;gap:16px;padding:16px;min-height:100vh}
+.sidebar{background:#fff;padding:16px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.1);width:270px;height:fit-content;display:flex;flex-direction:column;gap:10px;font-size:13px;flex-shrink:0}
+h1{font-size:16px;font-weight:600;color:#111}
+.sec{border-top:1px solid #e5e7eb;padding-top:10px;display:flex;flex-direction:column;gap:7px}
+.sec-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#999}
+.algo-group{display:flex;flex-direction:column;gap:3px}
+.algo-label{font-size:10px;font-weight:600;color:#aaa;text-transform:uppercase;letter-spacing:.04em;padding:4px 0 2px;border-top:1px dashed #f0f0f0;margin-top:2px}
+.algo-label:first-child{border-top:none;margin-top:0}
+label{display:block;margin-bottom:2px;color:#555;font-size:12px;font-weight:500}
+input[type=number],select{width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:4px;font-size:13px}
+input[type=range]{width:100%;padding:0}
+.rv{font-size:11px;color:#888}
+button{width:100%;padding:7px;border:none;border-radius:4px;font-size:13px;font-weight:500;cursor:pointer;transition:background .15s}
+.btn-primary{background:#2563eb;color:#fff}.btn-primary:hover{background:#1d4ed8}
+.btn-green{background:#10b981;color:#fff}.btn-green:hover{background:#059669}
+.btn-gray{background:#e5e7eb;color:#333}.btn-gray:hover{background:#d1d5db}
+button:disabled{opacity:.4;cursor:not-allowed}
+.badge{padding:5px 10px;background:#f3f4f6;border-radius:4px;font-size:12px;text-align:center;font-weight:500;color:#555}
+.badge.on{background:#dbeafe;color:#1e40af}
+.color-row{display:flex;gap:8px;align-items:center}
+input[type=color]{width:40px;height:26px;border:1px solid #ddd;border-radius:4px;cursor:pointer;padding:1px}
+.canvas-wrap{flex:1;background:#fff;padding:16px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.1);display:flex;justify-content:center;align-items:flex-start;overflow:auto}
+canvas{border:1px solid #e5e7eb;border-radius:4px;cursor:crosshair}
+.weight-grad{width:100%;height:8px;border-radius:3px;background:linear-gradient(to right,#ef4444,#f59e0b,#22c55e);margin:2px 0}
+.hint{font-size:11px;color:#999;font-style:italic;line-height:1.4}
+.param-row{display:flex;gap:8px;align-items:center}
+.param-row label{white-space:nowrap;margin:0}
+.param-row input[type=range]{flex:1}
+#editModal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100;align-items:center;justify-content:center}
+#editModal.show{display:flex}
+.modal-box{background:#fff;padding:20px;border-radius:8px;width:220px;display:flex;flex-direction:column;gap:12px}
+.modal-box h3{font-size:14px;font-weight:600}
+.modal-btns{display:flex;gap:8px}.modal-btns button{flex:1;padding:7px}
+.algo-desc{font-size:11px;color:#6b7280;background:#f9fafb;border-radius:4px;padding:6px 8px;line-height:1.45;border-left:3px solid #e5e7eb}
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <h1>Maze Lab</h1>
+
+  <div class="sec">
+    <div class="sec-title">Generation Algorithm</div>
+
+    <select id="genAlgo" onchange="updateAlgoUI()">
+      <optgroup label="— Perfect mazes (trees, no cycles) —">
+        <option value="dfs">Recursive Backtracker (DFS)</option>
+        <option value="wilson">Wilson's (loop-erased walk)</option>
+        <option value="prim">Randomised Prim's</option>
+        <option value="kruskal">Kruskal's</option>
+        <option value="binary">Binary Tree</option>
+        <option value="eller">Eller's (row-by-row)</option>
+        <option value="aldous">Aldous-Broder (uniform)</option>
+      </optgroup>
+      <optgroup label="— Multiple paths / cycles —">
+        <option value="braid">Braid maze (remove dead ends)</option>
+        <option value="partbraid">Partial braid (tunable cycles)</option>
+        <option value="weave">Weave / over-under passages</option>
+        <option value="rooms">Room + corridor graph</option>
+      </optgroup>
+      <optgroup label="— Noise / random graphs —">
+        <option value="perlin">Perlin-noise walls</option>
+        <option value="voronoi">Voronoi-region corridors</option>
+        <option value="erdos">Erdős–Rényi random graph</option>
+        <option value="cave">Cellular automaton cave</option>
+      </optgroup>
+      <optgroup label="— Deterministic patterns —">
+        <option value="spiral">Spiral / concentric</option>
+        <option value="fractal">Fractal recursive division</option>
+        <option value="sigma">Sigma (theta) ring maze</option>
+      </optgroup>
+    </select>
+
+    <div class="algo-desc" id="algoDesc"></div>
+
+    <!-- per-algo params, shown/hidden by updateAlgoUI() -->
+    <div id="param_braid" class="param-row" style="display:none">
+      <label>Remove %</label>
+      <input type="range" id="braidPct" min="10" max="100" value="100" step="5">
+      <span class="rv" id="braidVal">100%</span>
+    </div>
+    <div id="param_partbraid" class="param-row" style="display:none">
+      <label>Cycle %</label>
+      <input type="range" id="pbPct" min="5" max="95" value="30" step="5">
+      <span class="rv" id="pbVal">30%</span>
+    </div>
+    <div id="param_erdos" class="param-row" style="display:none">
+      <label>p</label>
+      <input type="range" id="erdosP" min="5" max="80" value="35" step="5">
+      <span class="rv" id="erdosPVal">0.35</span>
+    </div>
+    <div id="param_cave" class="param-row" style="display:none">
+      <label>Fill %</label>
+      <input type="range" id="caveFill" min="35" max="65" value="45" step="5">
+      <span class="rv" id="caveFillVal">45%</span>
+    </div>
+    <div id="param_perlin" class="param-row" style="display:none">
+      <label>Scale</label>
+      <input type="range" id="perlinScale" min="2" max="12" value="5" step="1">
+      <span class="rv" id="perlinScaleVal">5</span>
+    </div>
+    <div id="param_rooms" class="param-row" style="display:none">
+      <label>Rooms</label>
+      <input type="range" id="roomCount" min="3" max="20" value="8" step="1">
+      <span class="rv" id="roomCountVal">8</span>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-title">Grid</div>
+    <div><label>Size</label><input type="number" id="gridSize" value="24" min="5" max="80"></div>
+    <div>
+      <div class="param-row">
+        <label>Cell px</label>
+        <input type="range" id="cellSize" value="20" min="6" max="48">
+        <span class="rv" id="csVal">20</span>
+      </div>
+    </div>
+    <div><label>Animation</label>
+      <select id="speed">
+        <option value="0">Instant</option>
+        <option value="60">Very fast</option>
+        <option value="25" selected>Fast</option>
+        <option value="8">Normal</option>
+        <option value="2">Slow</option>
+      </select>
+    </div>
+    <button class="btn-primary" id="generateBtn">Generate</button>
+  </div>
+
+  <div class="sec">
+    <div class="sec-title">Weights</div>
+    <div class="weight-grad"></div>
+    <div class="hint">Open edges tinted red (heavy) → green (light). Click an open edge to edit.</div>
+    <button class="btn-gray" id="reshuffleWeights">Reshuffle weights</button>
+  </div>
+
+  <div class="sec">
+    <div class="sec-title">Start &amp; End</div>
+    <div class="badge" id="modeIndicator">Click maze to set points</div>
+    <button class="btn-green" id="setEntranceBtn">Set start (S)</button>
+    <button class="btn-green" id="setExitBtn">Set end (E)</button>
+    <button class="btn-gray" id="clearPtsBtn">Clear points</button>
+  </div>
+
+  <div class="sec">
+    <div class="sec-title">Pathfinding</div>
+    <select id="pfAlgo">
+      <option value="astar">A* (weight-aware)</option>
+      <option value="dijkstra">Dijkstra</option>
+      <option value="bfs">BFS (unweighted)</option>
+    </select>
+    <button class="btn-green" id="findPathBtn">Find path</button>
+    <button class="btn-gray" id="clearPathBtn">Clear path</button>
+  </div>
+
+  <div class="sec">
+    <div class="sec-title">Colors</div>
+    <div class="color-row"><input type="color" id="cWall" value="#1e293b"><label>Walls</label></div>
+    <div class="color-row"><input type="color" id="cPath" value="#ffffff"><label>Cell bg</label></div>
+    <div class="color-row"><input type="color" id="cSolution" value="#3b82f6"><label>Solution</label></div>
+    <div class="color-row"><input type="color" id="cEntrance" value="#22c55e"><label>Start</label></div>
+    <div class="color-row"><input type="color" id="cExit" value="#ef4444"><label>End</label></div>
+  </div>
+
+  <div class="sec">
+    <button class="btn-gray" id="exportBtn">Export matrix (.txt)</button>
+  </div>
+</div>
+
+<div class="canvas-wrap"><canvas id="c"></canvas></div>
+
+<div id="editModal">
+  <div class="modal-box">
+    <h3>Edit edge weight</h3>
+    <label>Weight (1–20)</label>
+    <input type="number" id="modalWeight" min="1" max="20" value="5">
+    <div class="modal-btns">
+      <button class="btn-primary" id="modalOk">Apply</button>
+      <button class="btn-gray" id="modalCancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── globals ───────────────────────────────────────────────────────────────────
+const canvas=document.getElementById('c'), ctx=canvas.getContext('2d');
+let G=24, CS=20, speed=25;
+let maze=[], weights={}, generating=false;
+let entrance=null, exit_=null, settingMode=null, solutionPath=[];
+let cWall='#1e293b',cPath='#ffffff',cSolution='#3b82f6',cEntrance='#22c55e',cExit='#ef4444';
+
+const ALGO_DESC={
+  dfs:'Long winding corridors, single solution path. Classic perfect maze.',
+  wilson:'Statistically uniform random spanning tree via loop-erased walks.',
+  prim:'Grows from a seed; shorter passages, more branching than DFS.',
+  kruskal:"Merges random edges; all spanning trees equally likely like Wilson's.",
+  binary:'Carve north or east at each cell — fast, biased diagonal texture.',
+  eller:"Processes one row at a time; memory-efficient, infinite-maze capable.",
+  aldous:'Uniform spanning tree via pure random walk — slow but unbiased.',
+  braid:'Removes ALL dead ends → every cell has ≥2 exits, creating cycles.',
+  partbraid:'DFS base then randomly removes a % of dead ends for tunable cycles.',
+  weave:'DFS with over/under crossings — passages tunnel beneath each other.',
+  rooms:'Rooms placed randomly, connected by corridors — dungeon-like graph.',
+  perlin:'Perlin-noise field thresholds walls — organic, cave-like, multi-path.',
+  voronoi:'Voronoi regions with corridors cut between adjacent centroids.',
+  erdos:'Erdős–Rényi: each possible edge added with probability p independently.',
+  cave:'Cellular automaton: random fill → smooth → extract open cells.',
+  spiral:'Deterministic concentric spiral rings with periodic gaps.',
+  fractal:'Recursive division — rooms subdivided by walls with random openings.',
+  sigma:'Theta/ring maze — concentric rings with radial spokes and arc passages.',
+};
+
+// ── maze cell ─────────────────────────────────────────────────────────────────
+function initMaze(){
+  maze=Array.from({length:G},()=>Array.from({length:G},()=>({vis:false,w:[true,true,true,true],over:false})));
+  weights={}; entrance=null; exit_=null; solutionPath=[];
+}
+function setupCanvas(){canvas.width=G*CS;canvas.height=G*CS;}
+
+// ── weights ───────────────────────────────────────────────────────────────────
+function eKey(r1,c1,r2,c2){return r1>r2||(r1===r2&&c1>c2)?`${r2},${c2}-${r1},${c1}`:`${r1},${c1}-${r2},${c2}`;}
+function getW(r1,c1,r2,c2){return weights[eKey(r1,c1,r2,c2)]??1;}
+function setW(r1,c1,r2,c2,v){weights[eKey(r1,c1,r2,c2)]=v;}
+function wColor(w){const t=(w-1)/19;const r=Math.round(239-217*t),g=Math.round(68+129*t),b=Math.round(68*(1-t));return`rgb(${r},${g},${b})`;}
+function assignWeights(){
+  for(let r=0;r<G;r++)for(let c=0;c<G;c++){
+    if(c+1<G)setW(r,c,r,c+1,Math.ceil(Math.random()*10));
+    if(r+1<G)setW(r,c,r+1,c,Math.ceil(Math.random()*10));
+  }
+}
+
+// ── draw ──────────────────────────────────────────────────────────────────────
+function draw(cur=[]){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle=cPath; ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  // weight tint
+  for(let r=0;r<G;r++)for(let c=0;c<G;c++){
+    const cell=maze[r][c];
+    const tint=(r2,c2)=>{ctx.fillStyle=wColor(getW(r,c,r2,c2));ctx.globalAlpha=0.22;ctx.fillRect(c*CS,r*CS,CS,CS);ctx.fillRect(c2*CS,r2*CS,CS,CS);ctx.globalAlpha=1;};
+    if(!cell.w[1]&&c+1<G) tint(r,c+1);
+    if(!cell.w[2]&&r+1<G) tint(r+1,c);
+  }
+
+  // solution
+  if(solutionPath.length){
+    ctx.fillStyle=cSolution; ctx.globalAlpha=0.5;
+    for(const[r,c]of solutionPath) ctx.fillRect(c*CS,r*CS,CS,CS);
+    ctx.globalAlpha=1;
+  }
+  // animation highlight
+  if(cur.length){
+    ctx.fillStyle='#a855f7'; ctx.globalAlpha=0.35;
+    for(const[r,c]of cur) ctx.fillRect(c*CS,r*CS,CS,CS);
+    ctx.globalAlpha=1;
+  }
+
+  // start/end
+  const pt=(p,col,lbl)=>{if(!p)return;ctx.fillStyle=col;ctx.fillRect(p.c*CS,p.r*CS,CS,CS);ctx.fillStyle='#fff';ctx.font=`bold ${Math.max(9,CS*.55)}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(lbl,p.c*CS+CS/2,p.r*CS+CS/2);};
+  pt(entrance,cEntrance,'S'); pt(exit_,cExit,'E');
+
+  // walls
+  ctx.strokeStyle=cWall; ctx.lineWidth=1.5;
+  for(let r=0;r<G;r++)for(let c=0;c<G;c++){
+    const{w}=maze[r][c], x=c*CS, y=r*CS;
+    ctx.beginPath();
+    if(w[0]){ctx.moveTo(x,y);ctx.lineTo(x+CS,y);}
+    if(w[1]){ctx.moveTo(x+CS,y);ctx.lineTo(x+CS,y+CS);}
+    if(w[2]){ctx.moveTo(x,y+CS);ctx.lineTo(x+CS,y+CS);}
+    if(w[3]){ctx.moveTo(x,y);ctx.lineTo(x,y+CS);}
+    ctx.stroke();
+  }
+}
+
+// ── carve / helpers ───────────────────────────────────────────────────────────
+function carve(r1,c1,r2,c2){
+  const dr=r2-r1,dc=c2-c1;
+  if(dr===-1){maze[r1][c1].w[0]=false;maze[r2][c2].w[2]=false;}
+  else if(dr===1){maze[r1][c1].w[2]=false;maze[r2][c2].w[0]=false;}
+  else if(dc===-1){maze[r1][c1].w[3]=false;maze[r2][c2].w[1]=false;}
+  else if(dc===1){maze[r1][c1].w[1]=false;maze[r2][c2].w[3]=false;}
+}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function nb(r,c){return[[-1,0],[1,0],[0,-1],[0,1]].map(([dr,dc])=>[r+dr,c+dc]).filter(([nr,nc])=>nr>=0&&nr<G&&nc>=0&&nc<G);}
+function wallDir(r1,c1,r2,c2){const dr=r2-r1,dc=c2-c1;if(dr===-1)return 0;if(dc===1)return 1;if(dr===1)return 2;return 3;}
+function accessible(r,c){
+  const res=[],{w}=maze[r][c];
+  if(!w[0]&&r>0)res.push([r-1,c]);if(!w[1]&&c<G-1)res.push([r,c+1]);
+  if(!w[2]&&r<G-1)res.push([r+1,c]);if(!w[3]&&c>0)res.push([r,c-1]);
+  return res;
+}
+function deadEnds(){return maze.flatMap((row,r)=>row.map((cell,c)=>[r,c,cell])).filter(([,,cell])=>cell.w.filter(Boolean).length===3);}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function rnd(n){return Math.floor(Math.random()*n);}
+
+// ── Perlin noise (simple 2D) ──────────────────────────────────────────────────
+function makePerlin(){
+  const p=Array.from({length:256},(_,i)=>i); shuffle(p); const pp=[...p,...p];
+  const fade=t=>t*t*t*(t*(t*6-15)+10);
+  const lerp=(a,b,t)=>a+(b-a)*t;
+  const grad=(h,x,y)=>{const v=h&3;const u=v<2?x:y,w=v<2?y:x;return((h&1)?-u:u)+((h&2)?-w:w);};
+  return(x,y)=>{
+    const X=Math.floor(x)&255,Y=Math.floor(y)&255;
+    const xf=x-Math.floor(x),yf=y-Math.floor(y);
+    const u=fade(xf),v=fade(yf);
+    const A=pp[X]+Y,B=pp[X+1]+Y;
+    return lerp(lerp(grad(pp[A],xf,yf),grad(pp[B],xf-1,yf),u),
+                lerp(grad(pp[A+1],xf,yf-1),grad(pp[B+1],xf-1,yf-1),u),v);
+  };
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GENERATION ALGORITHMS
+// ══════════════════════════════════════════════════════════════════════════════
+
+// 1. DFS -----------------------------------------------------------------------
+async function genDFS(){
+  const stack=[]; const sr=rnd(G),sc=rnd(G);
+  maze[sr][sc].vis=true; stack.push([sr,sc]);
+  let t=0;
+  while(stack.length){
+    const[r,c]=stack[stack.length-1];
+    const un=nb(r,c).filter(([nr,nc])=>!maze[nr][nc].vis);
+    if(!un.length){stack.pop();continue;}
+    const[nr,nc]=un[rnd(un.length)];
+    carve(r,c,nr,nc); maze[nr][nc].vis=true; stack.push([nr,nc]);
+    if(speed&&!(++t%4)){draw(stack);await sleep(speed);}
+  }
+}
+
+// 2. Wilson's ------------------------------------------------------------------
+async function genWilson(){
+  const sr=rnd(G),sc=rnd(G); maze[sr][sc].vis=true;
+  const unvis=[];
+  for(let r=0;r<G;r++)for(let c=0;c<G;c++)if(!(r===sr&&c===sc))unvis.push([r,c]);
+  while(unvis.length){
+    const idx=rnd(unvis.length); let[r,c]=unvis[idx];
+    if(maze[r][c].vis){unvis.splice(idx,1);continue;}
+    const path=[[r,c]],ps=new Set([`${r},${c}`]);
+    let cr=r,cc=c;
+    while(!maze[cr][cc].vis){
+      const nbs=nb(cr,cc),[nr,nc]=nbs[rnd(nbs.length)],k=`${nr},${nc}`;
+      if(ps.has(k)){while(path.length){const[pr,pc]=path.pop();ps.delete(`${pr},${pc}`);if(pr===nr&&pc===nc){path.push([nr,nc]);ps.add(k);break;}}}
+      else{path.push([nr,nc]);ps.add(k);}
+      cr=nr;cc=nc;
+    }
+    if(speed){draw(path);await sleep(speed);}
+    for(let i=0;i<path.length-1;i++){const[r1,c1]=path[i],[r2,c2]=path[i+1];carve(r1,c1,r2,c2);maze[r1][c1].vis=true;}
+    for(let i=unvis.length-1;i>=0;i--)if(maze[unvis[i][0]][unvis[i][1]].vis)unvis.splice(i,1);
+    if(speed){draw();await sleep(speed/2);}
+  }
+}
+
+// 3. Prim's --------------------------------------------------------------------
+async function genPrim(){
+  const sr=rnd(G),sc=rnd(G); maze[sr][sc].vis=true;
+  let fr=nb(sr,sc).map(([nr,nc])=>[sr,sc,nr,nc]); let t=0;
+  while(fr.length){
+    const i=rnd(fr.length),[r1,c1,r2,c2]=fr[i]; fr.splice(i,1);
+    if(maze[r2][c2].vis)continue;
+    carve(r1,c1,r2,c2); maze[r2][c2].vis=true;
+    for(const[nr,nc]of nb(r2,c2))if(!maze[nr][nc].vis)fr.push([r2,c2,nr,nc]);
+    if(speed&&!(++t%4)){draw();await sleep(speed);}
+  }
+}
+
+// 4. Kruskal's -----------------------------------------------------------------
+async function genKruskal(){
+  const id=Array.from({length:G},(_,r)=>Array.from({length:G},(_,c)=>r*G+c));
+  const find=(r,c)=>{let v=id[r][c];if(v===r*G+c)return[r,c];const[pr,pc]=find(Math.floor(v/G),v%G);id[r][c]=pr*G+pc;return[pr,pc];};
+  const union=(r1,c1,r2,c2)=>{const[ar,ac]=find(r1,c1),[br,bc]=find(r2,c2);if(ar===br&&ac===bc)return false;id[ar][ac]=br*G+bc;return true;};
+  const edges=shuffle([...Array.from({length:G},(_,r)=>Array.from({length:G-1},(_,c)=>[r,c,r,c+1])).flat(),...Array.from({length:G-1},(_,r)=>Array.from({length:G},(_,c)=>[r,c,r+1,c])).flat()]);
+  let t=0;
+  for(const[r1,c1,r2,c2]of edges){
+    if(union(r1,c1,r2,c2)){carve(r1,c1,r2,c2);maze[r1][c1].vis=true;maze[r2][c2].vis=true;}
+    if(speed&&!(++t%10)){draw();await sleep(speed);}
+  }
+}
+
+// 5. Binary Tree ---------------------------------------------------------------
+async function genBinaryTree(){
+  let t=0;
+  for(let r=0;r<G;r++)for(let c=0;c<G;c++){
+    maze[r][c].vis=true;
+    const opts=[];
+    if(r>0)opts.push([r-1,c]); if(c<G-1)opts.push([r,c+1]);
+    if(!opts.length)continue;
+    const[nr,nc]=opts[rnd(opts.length)]; carve(r,c,nr,nc);
+    if(speed&&!(++t%6)){draw();await sleep(speed);}
+  }
+}
+
+// 6. Eller's -------------------------------------------------------------------
+async function genEller(){
+  // Row-by-row: assign sets, randomly merge adjacent, carve down
+  let rowSets=Array.from({length:G},(_,c)=>c+1); let nextId=G+1;
+  for(let r=0;r<G;r++){
+    maze[r].forEach(c=>c.vis=true);
+    // merge adjacent cells in same row randomly (must merge if last row)
+    for(let c=0;c<G-1;c++){
+      if(rowSets[c]!==rowSets[c+1]&&(r===G-1||Math.random()<0.5)){
+        const old=rowSets[c+1],rep=rowSets[c];
+        carve(r,c,r,c+1);
+        rowSets=rowSets.map(s=>s===old?rep:s);
+      }
+    }
+    if(r===G-1)break;
+    // carve down — at least one per set
+    const sets={};
+    rowSets.forEach((s,c)=>{(sets[s]=sets[s]||[]).push(c);});
+    const nextRow=new Array(G).fill(0);
+    for(const[s,cols]of Object.entries(sets)){
+      const downs=shuffle([...cols]).slice(0,1+rnd(cols.length));
+      for(const c of downs){carve(r,c,r+1,c);nextRow[c]=+s;}
+    }
+    // assign new sets to cells not carved down
+    for(let c=0;c<G;c++)if(!nextRow[c])nextRow[c]=nextId++;
+    rowSets=nextRow;
+    if(speed){draw();await sleep(speed);}
+  }
+}
+
+// 7. Aldous-Broder -------------------------------------------------------------
+async function genAldousBroder(){
+  let r=rnd(G),c=rnd(G),rem=G*G-1; maze[r][c].vis=true; let t=0;
+  while(rem>0){
+    const nbs=nb(r,c),[nr,nc]=nbs[rnd(nbs.length)];
+    if(!maze[nr][nc].vis){carve(r,c,nr,nc);maze[nr][nc].vis=true;rem--;}
+    r=nr;c=nc;
+    if(speed&&!(++t%8)){draw([[r,c]]);await sleep(speed);}
+  }
+}
+
+// 8. Braid (remove ALL dead ends) ---------------------------------------------
+async function genBraid(){
+  await genDFS();
+  const des=deadEnds(); let t=0;
+  for(const[r,c]of shuffle(des)){
+    const walls=[0,1,2,3].filter(i=>maze[r][c].w[i]);
+    for(const wi of shuffle(walls)){
+      const[dr,dc]=[[- 1,0],[0,1],[1,0],[0,-1]][wi];
+      const nr=r+dr,nc=c+dc;
+      if(nr<0||nr>=G||nc<0||nc>=G)continue;
+      carve(r,c,nr,nc); break;
+    }
+    if(speed&&!(++t%5)){draw();await sleep(speed);}
+  }
+}
+
+// 9. Partial braid (tunable %) -------------------------------------------------
+async function genPartBraid(){
+  await genDFS();
+  const pct=parseInt(document.getElementById('pbPct').value)/100;
+  const des=shuffle(deadEnds()).slice(0,Math.floor(deadEnds().length*(pct)));
+  let t=0;
+  for(const[r,c]of des){
+    const walls=[0,1,2,3].filter(i=>maze[r][c].w[i]);
+    for(const wi of shuffle(walls)){
+      const[dr,dc]=[[-1,0],[0,1],[1,0],[0,-1]][wi];
+      const nr=r+dr,nc=c+dc;
+      if(nr<0||nr>=G||nc<0||nc>=G)continue;
+      carve(r,c,nr,nc); break;
+    }
+    if(speed&&!(++t%5)){draw();await sleep(speed);}
+  }
+}
+
+// 10. Weave (DFS with over/under) ----------------------------------------------
+async function genWeave(){
+  const sr=rnd(G),sc=rnd(G); maze[sr][sc].vis=true;
+  const stack=[[sr,sc]]; let t=0;
+  while(stack.length){
+    const[r,c]=stack[stack.length-1];
+    let found=false;
+    const dirs=shuffle([[- 1,0],[1,0],[0,-1],[0,1]]);
+    for(const[dr,dc]of dirs){
+      const nr=r+dr,nc=c+dc;
+      if(nr<0||nr>=G||nc<0||nc>=G)continue;
+      if(!maze[nr][nc].vis){carve(r,c,nr,nc);maze[nr][nc].vis=true;stack.push([nr,nc]);found=true;break;}
+      // tunnel under visited cell
+      const nnr=nr+dr,nnc=nc+dc;
+      if(nnr>=0&&nnr<G&&nnc>=0&&nnc<G&&!maze[nnr][nnc].vis&&Math.random()<0.25){
+        carve(r,c,nr,nc);carve(nr,nc,nnr,nnc);maze[nr][nc].over=true;maze[nnr][nnc].vis=true;stack.push([nnr,nnc]);found=true;break;
+      }
+    }
+    if(!found)stack.pop();
+    if(speed&&!(++t%4)){draw(stack);await sleep(speed);}
+  }
+}
+
+// 11. Room + corridor ----------------------------------------------------------
+async function genRooms(){
+  // place rooms, connect with corridors (multiple paths possible)
+  const count=parseInt(document.getElementById('roomCount').value);
+  const rooms=[];
+  for(let i=0;i<count*10&&rooms.length<count;i++){
+    const w=2+rnd(Math.max(2,Math.floor(G/5))),h=2+rnd(Math.max(2,Math.floor(G/5)));
+    const x=rnd(G-w),y=rnd(G-h);
+    if(rooms.some(rm=>x<rm.x+rm.w+1&&x+w+1>rm.x&&y<rm.y+rm.h+1&&y+h+1>rm.y))continue;
+    rooms.push({x,y,w,h});
+  }
+  // open all cells inside rooms
+  for(const{x,y,w,h}of rooms){
+    for(let r=y;r<y+h;r++)for(let c=x;c<x+w;c++){
+      maze[r][c].vis=true;
+      if(c+1<x+w)carve(r,c,r,c+1);
+      if(r+1<y+h)carve(r,c,r+1,c);
+    }
+    if(speed){draw();await sleep(speed);}
+  }
+  // connect rooms with L-shaped corridors (all pairs within distance threshold)
+  const cx=rm=>Math.floor(rm.x+rm.w/2),cy=rm=>Math.floor(rm.y+rm.h/2);
+  shuffle(rooms);
+  for(let i=0;i<rooms.length;i++){
+    const target=rooms[(i+1)%rooms.length];
+    let r=cy(rooms[i]),c=cx(rooms[i]);
+    const er=cy(target),ec=cx(target);
+    while(r!==er){const nr=r+(er>r?1:-1);carve(r,c,nr,c);maze[r][c].vis=true;maze[nr][nc=c].vis=true;r=nr;}
+    while(c!==ec){const nc2=c+(ec>c?1:-1);carve(r,c,r,nc2);maze[r][c].vis=true;maze[nr2=r][nc2].vis=true;c=nc2;}
+    if(speed){draw();await sleep(speed);}
+  }
+}
+
+// 12. Perlin noise walls -------------------------------------------------------
+async function genPerlin(){
+  const noise=makePerlin();
+  const scale=parseFloat(document.getElementById('perlinScale').value);
+  let t=0;
+  for(let r=0;r<G;r++)for(let c=0;c<G;c++){
+    maze[r][c].vis=true;
+    const v=noise(c/scale,r/scale);
+    if(v>0.05){
+      if(c+1<G&&noise((c+1)/scale,r/scale)>0.05)carve(r,c,r,c+1);
+      if(r+1<G&&noise(c/scale,(r+1)/scale)>0.05)carve(r,c,r+1,c);
+    }
+    if(speed&&!(++t%8)){draw();await sleep(speed);}
+  }
+}
+
+// 13. Voronoi-region corridors -------------------------------------------------
+async function genVoronoi(){
+  const nSeeds=Math.max(4,Math.floor(G*G/20));
+  const seeds=Array.from({length:nSeeds},()=>[rnd(G),rnd(G)]);
+  const region=(r,c)=>seeds.reduce((bi,s,i)=>Math.hypot(s[0]-r,s[1]-c)<Math.hypot(seeds[bi][0]-r,seeds[bi][1]-c)?i:bi,0);
+  // build MST of seeds (Prim's on seed graph)
+  const vis=new Set([0]),edges=[];
+  while(vis.size<seeds.length){
+    let best=null,bestD=Infinity;
+    for(const i of vis)for(let j=0;j<seeds.length;j++){
+      if(vis.has(j))continue;
+      const d=Math.hypot(seeds[i][0]-seeds[j][0],seeds[i][1]-seeds[j][1]);
+      if(d<bestD){bestD=d;best=[i,j];}
+    }
+    if(!best)break;
+    vis.add(best[1]);edges.push(best);
+  }
+  // open all cells first
+  for(let r=0;r<G;r++)for(let c=0;c<G;c++) maze[r][c].vis=true;
+  // carve corridors between connected seed pairs
+  let t=0;
+  for(const[i,j]of edges){
+    let[r,c]=seeds[i];const[er,ec]=seeds[j];
+    while(r!==er||c!==ec){
+      const nr=r+(r<er?1:r>er?-1:0),nc=c+(c<ec?1:c>ec?-1:0);
+      if(nr!==r)carve(r,c,nr,c);
+      else carve(r,c,r,nc);
+      r=nr;c=nc;
+      if(speed&&!(++t%5)){draw();await sleep(speed);}
+    }
+  }
+  // also open within-region neighbours
+  for(let r=0;r<G;r++)for(let c=0;c<G;c++){
+    if(c+1<G&&region(r,c)===region(r,c+1))carve(r,c,r,c+1);
+    if(r+1<G&&region(r,c)===region(r+1,c))carve(r,c,r+1,c);
+  }
+}
+
+// 14. Erdős–Rényi --------------------------------------------------------------
+async function genErdos(){
+  for(let r=0;r<G;r++)for(let c=0;c<G;c++) maze[r][c].vis=true;
+  const p=parseInt(document.getElementById('erdosP').value)/100;
+  const edges=shuffle([...Array.from({length:G},(_,r)=>Array.from({length:G-1},(_,c)=>[r,c,r,c+1])).flat(),...Array.from({length:G-1},(_,r)=>Array.from({length:G},(_,c)=>[r,c,r+1,c])).flat()]);
+  let t=0;
+  for(const[r1,c1,r2,c2]of edges){
+    if(Math.random()<p)carve(r1,c1,r2,c2);
+    if(speed&&!(++t%15)){draw();await sleep(speed);}
+  }
+}
+
+// 15. Cellular automaton cave --------------------------------------------------
+async function genCave(){
+  const fill=parseInt(document.getElementById('caveFill').value)/100;
+  // init random
+  let grid=Array.from({length:G},(_,r)=>Array.from({length:G},(_,c)=>(r===0||r===G-1||c===0||c===G-1)?1:(Math.random()<fill?1:0)));
+  // smooth 4 generations
+  for(let gen=0;gen<4;gen++){
+    const ng=grid.map((row,r)=>row.map((_,c)=>{
+      let walls=0;
+      for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){const nr=r+dr,nc=c+dc;walls+=(nr<0||nr>=G||nc<0||nc>=G||grid[nr][nc]);}
+      return walls>=5?1:0;
+    }));
+    grid=ng;
+    if(speed){draw();await sleep(speed);}
+  }
+  // convert to maze walls
+  for(let r=0;r<G;r++)for(let c=0;c<G;c++){
+    maze[r][c].vis=!grid[r][c];
+    if(grid[r][c])continue;
+    if(c+1<G&&!grid[r][c+1])carve(r,c,r,c+1);
+    if(r+1<G&&!grid[r+1][c])carve(r,c,r+1,c);
+  }
+}
+
+// 16. Spiral / concentric -------------------------------------------------------
+async function genSpiral(){
+  for(let r=0;r<G;r++)for(let c=0;c<G;c++) maze[r][c].vis=true;
+  // carve concentric rings, each ring has a gap
+  const cx=Math.floor(G/2),cy=Math.floor(G/2);
+  const maxR=Math.min(cx,cy);
+  for(let rad=1;rad<maxR;rad++){
+    // top row
+    for(let c=cx-rad;c<cx+rad;c++) if(c>=0&&c<G-1&&cx-rad>=0) carve(cx-rad,c,cx-rad,c+1);
+    // bottom
+    for(let c=cx-rad;c<cx+rad;c++) if(c>=0&&c<G-1&&cx+rad<G) carve(cx+rad,c,cx+rad,c+1);
+    // left
+    for(let r=cy-rad;r<cy+rad;r++) if(r>=0&&r<G-1&&cy-rad>=0) carve(r,cy-rad,r+1,cy-rad);
+    // right
+    for(let r=cy-rad;r<cy+rad;r++) if(r>=0&&r<G-1&&cy+rad<G) carve(r,cy+rad,r+1,cy+rad);
+    // gap into next ring
+    const side=rnd(4);
+    if(side===0&&cx-rad>=0&&cx-rad-1>=0) carve(cx-rad,cx,cx-rad-1,cx);
+    else if(side===1&&cx+rad<G&&cx+rad+1<G) carve(cx+rad,cx,cx+rad+1,cx);
+    else if(side===2&&cy-rad>=0&&cy-rad-1>=0) carve(cy,cy-rad,cy,cy-rad-1);
+    else if(cy+rad<G&&cy+rad+1<G) carve(cy,cy+rad,cy,cy+rad+1);
+    if(speed){draw();await sleep(speed);}
+  }
+  // fill interior
+  for(let r=cy-1;r<=cy+1;r++)for(let c=cx-1;c<=cx+1;c++){
+    if(r<G-1)carve(r,c,r+1,c); if(c<G-1)carve(r,c,r,c+1);
+  }
+}
+
+// 17. Fractal recursive division -----------------------------------------------
+async function genFractal(){
+  for(let r=0;r<G;r++)for(let c=0;c<G;c++){maze[r][c].vis=true;maze[r][c].w=[false,false,false,false];}
+  // add outer border walls
+  for(let c=0;c<G;c++){maze[0][c].w[0]=true;maze[G-1][c].w[2]=true;}
+  for(let r=0;r<G;r++){maze[r][0].w[3]=true;maze[r][G-1].w[1]=true;}
+
+  async function divide(r,c,h,w,horiz){
+    if(h<2||w<2)return;
+    if(horiz){
+      const wr=r+rnd(h-1); // wall row
+      const gap=c+rnd(w);
+      for(let cc=c;cc<c+w;cc++) if(cc!==gap){maze[wr][cc].w[2]=true;if(wr+1<G)maze[wr+1][cc].w[0]=true;}
+      if(speed){draw();await sleep(speed);}
+      await divide(r,c,wr-r+1,w,w<h);
+      await divide(wr+1,c,r+h-wr-1,w,w<h);
+    } else {
+      const wc=c+rnd(w-1);
+      const gap=r+rnd(h);
+      for(let rr=r;rr<r+h;rr++) if(rr!==gap){maze[rr][wc].w[1]=true;if(wc+1<G)maze[rr][wc+1].w[3]=true;}
+      if(speed){draw();await sleep(speed);}
+      await divide(r,c,h,wc-c+1,h<w);
+      await divide(r,wc+1,h,c+w-wc-1,h<w);
+    }
+  }
+  await divide(0,0,G,G,G>G); // initial orientation arbitrary
+}
+
+// 18. Sigma / ring / theta maze ------------------------------------------------
+async function genSigma(){
+  for(let r=0;r<G;r++)for(let c=0;c<G;c++) maze[r][c].vis=true;
+  // concentric rings: open arc passages, radial spokes with gaps
+  const cx=G/2,cy=G/2,maxRad=Math.min(cx,cy)*0.9;
+  const rings=Math.max(2,Math.floor(maxRad));
+  const spokeCount=Math.max(4,Math.floor(rings*2));
+
+  for(let ring=1;ring<=rings;ring++){
+    const theta=2*Math.PI/spokeCount;
+    for(let s=0;s<spokeCount;s++){
+      const t1=s*theta, t2=(s+1)*theta;
+      // arc cells along this ring segment
+      for(let frac=0;frac<=8;frac++){
+        const t=t1+(t2-t1)*frac/8;
+        const r1=Math.round(cy+ring*Math.sin(t)),c1=Math.round(cx+ring*Math.cos(t));
+        const r2=Math.round(cy+ring*Math.sin(t+(t2-t1)/8)),c2=Math.round(cx+ring*Math.cos(t+(t2-t1)/8));
+        if(r1>=0&&r1<G&&c1>=0&&c1<G&&r2>=0&&r2<G&&c2>=0&&c2<G&&(r1!==r2||c1!==c2)){
+          if(Math.abs(r1-r2)<=1&&Math.abs(c1-c2)<=1) carve(r1,c1,r2,c2);
+        }
+      }
+      // radial spoke inward with random gaps
+      if(Math.random()>0.3){
+        const t=s*theta;
+        const ir=Math.round(cy+(ring-1)*Math.sin(t)),ic=Math.round(cx+(ring-1)*Math.cos(t));
+        const or2=Math.round(cy+ring*Math.sin(t)),oc=Math.round(cx+ring*Math.cos(t));
+        if(ir>=0&&ir<G&&ic>=0&&ic<G&&or2>=0&&or2<G&&oc>=0&&oc<G&&(Math.abs(ir-or2)+Math.abs(ic-oc)===1)){
+          carve(ir,ic,or2,oc);
+        }
+      }
+    }
+    if(speed){draw();await sleep(speed);}
+  }
+  // open centre
+  const cr=Math.floor(cy),cc2=Math.floor(cx);
+  for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){
+    const nr=cr+dr,nc=cc2+dc;
+    if(nr>=0&&nr<G&&nc>=0&&nc<G&&(Math.abs(dr)+Math.abs(dc)===1)) carve(cr,cc2,nr,nc);
+  }
+}
+
+// ── dispatcher ───────────────────────────────────────────────────────────────
+async function generate(){
+  if(generating)return;
+  generating=true;
+  document.getElementById('generateBtn').disabled=true;
+  G=Math.max(5,Math.min(80,parseInt(document.getElementById('gridSize').value)||24));
+  CS=parseInt(document.getElementById('cellSize').value)||20;
+  speed=parseInt(document.getElementById('speed').value);
+  initMaze(); setupCanvas(); draw();
+  const algo=document.getElementById('genAlgo').value;
+  const map={dfs:genDFS,wilson:genWilson,prim:genPrim,kruskal:genKruskal,binary:genBinaryTree,eller:genEller,aldous:genAldousBroder,braid:genBraid,partbraid:genPartBraid,weave:genWeave,rooms:genRooms,perlin:genPerlin,voronoi:genVoronoi,erdos:genErdos,cave:genCave,spiral:genSpiral,fractal:genFractal,sigma:genSigma};
+  await (map[algo]||genDFS)();
+  assignWeights(); draw();
+  generating=false;
+  document.getElementById('generateBtn').disabled=false;
+}
+
+// ── pathfinding ───────────────────────────────────────────────────────────────
+class Heap{constructor(){this.h=[];}push(x,p){this.h.push({x,p});this._up(this.h.length-1);}pop(){const t=this.h[0],l=this.h.pop();if(this.h.length){this.h[0]=l;this._dn(0);}return t.x;} get size(){return this.h.length;}_up(i){while(i>0){const p=(i-1)>>1;if(this.h[p].p<=this.h[i].p)break;[this.h[p],this.h[i]]=[this.h[i],this.h[p]];i=p;}}_dn(i){const n=this.h.length;for(;;){let s=i,l=2*i+1,r=2*i+2;if(l<n&&this.h[l].p<this.h[s].p)s=l;if(r<n&&this.h[r].p<this.h[s].p)s=r;if(s===i)break;[this.h[s],this.h[i]]=[this.h[i],this.h[s]];i=s;}}}
+const heur=(r,c,er,ec)=>Math.abs(r-er)+Math.abs(c-ec);
+function recon(came,end){const p=[];let cur=end;while(cur){const[r,c]=cur.split(',').map(Number);p.unshift([r,c]);cur=came.get(cur);}return p;}
+function aStar(sr,sc,er,ec){const g=new Map(),came=new Map(),s=`${sr},${sc}`;g.set(s,0);const pq=new Heap();pq.push(s,heur(sr,sc,er,ec));while(pq.size){const cur=pq.pop();const[r,c]=cur.split(',').map(Number);if(r===er&&c===ec)return recon(came,cur);for(const[nr,nc]of accessible(r,c)){const nb=`${nr},${nc}`,ng=(g.get(cur)??1e9)+getW(r,c,nr,nc);if(ng<(g.get(nb)??1e9)){g.set(nb,ng);came.set(nb,cur);pq.push(nb,ng+heur(nr,nc,er,ec));}}}return null;}
+function dijkstra(sr,sc,er,ec){const dist=new Map(),came=new Map(),s=`${sr},${sc}`;dist.set(s,0);const pq=new Heap();pq.push(s,0);while(pq.size){const cur=pq.pop();const[r,c]=cur.split(',').map(Number);if(r===er&&c===ec)return recon(came,cur);for(const[nr,nc]of accessible(r,c)){const nb=`${nr},${nc}`,nd=(dist.get(cur)??1e9)+getW(r,c,nr,nc);if(nd<(dist.get(nb)??1e9)){dist.set(nb,nd);came.set(nb,cur);pq.push(nb,nd);}}}return null;}
+function bfs(sr,sc,er,ec){const vis=new Set(),came=new Map(),q=[[sr,sc]];vis.add(`${sr},${sc}`);while(q.length){const[r,c]=q.shift(),cur=`${r},${c}`;if(r===er&&c===ec)return recon(came,cur);for(const[nr,nc]of accessible(r,c)){const nb=`${nr},${nc}`;if(!vis.has(nb)){vis.add(nb);came.set(nb,cur);q.push([nr,nc]);}}}return null;}
+
+function findPath(){
+  if(!entrance||!exit_){alert('Set start and end first.');return;}
+  const a=document.getElementById('pfAlgo').value;
+  const p=a==='astar'?aStar(entrance.r,entrance.c,exit_.r,exit_.c):a==='dijkstra'?dijkstra(entrance.r,entrance.c,exit_.r,exit_.c):bfs(entrance.r,entrance.c,exit_.r,exit_.c);
+  if(p){solutionPath=p;draw();}else alert('No path found.');
+}
+
+// ── edge click ────────────────────────────────────────────────────────────────
+let pendingEdge=null;
+function detectEdge(x,y){
+  const r=Math.floor(y/CS),c=Math.floor(x/CS);
+  if(r<0||r>=G||c<0||c>=G)return null;
+  const lx=x-c*CS,ly=y-r*CS,T=CS*0.3;
+  if(lx>CS-T&&c+1<G&&!maze[r][c].w[1])return[r,c,r,c+1];
+  if(lx<T&&c-1>=0&&!maze[r][c].w[3])return[r,c,r,c-1];
+  if(ly>CS-T&&r+1<G&&!maze[r][c].w[2])return[r,c,r+1,c];
+  if(ly<T&&r-1>=0&&!maze[r][c].w[0])return[r,c,r-1,c];
+  return null;
+}
+document.getElementById('modalOk').onclick=()=>{
+  if(pendingEdge){const v=Math.max(1,Math.min(20,parseInt(document.getElementById('modalWeight').value)||1));setW(...pendingEdge,v);draw();pendingEdge=null;}
+  document.getElementById('editModal').classList.remove('show');
+};
+document.getElementById('modalCancel').onclick=()=>{pendingEdge=null;document.getElementById('editModal').classList.remove('show');};
+
+canvas.addEventListener('click',e=>{
+  if(!maze.length||generating)return;
+  const rect=canvas.getBoundingClientRect(),x=e.clientX-rect.left,y=e.clientY-rect.top;
+  const c=Math.floor(x/CS),r=Math.floor(y/CS);
+  if(r<0||r>=G||c<0||c>=G)return;
+  if(settingMode==='entrance'){entrance={r,c};settingMode=null;solutionPath=[];updateMode();draw();}
+  else if(settingMode==='exit'){exit_={r,c};settingMode=null;solutionPath=[];updateMode();draw();}
+  else{const edge=detectEdge(x,y);if(edge){pendingEdge=edge;document.getElementById('modalWeight').value=getW(...edge);document.getElementById('editModal').classList.add('show');}}
+});
+
+function updateMode(){
+  const el=document.getElementById('modeIndicator');
+  if(settingMode==='entrance'){el.textContent='Click cell → set start';el.classList.add('on');}
+  else if(settingMode==='exit'){el.textContent='Click cell → set end';el.classList.add('on');}
+  else{el.textContent='Click maze to set points';el.classList.remove('on');}
+}
+
+// ── algo UI ───────────────────────────────────────────────────────────────────
+function updateAlgoUI(){
+  const v=document.getElementById('genAlgo').value;
+  ['braid','partbraid','erdos','cave','perlin','rooms'].forEach(id=>document.getElementById(`param_${id}`).style.display='none');
+  if(['braid','partbraid','erdos','cave','perlin','rooms'].includes(v)) document.getElementById(`param_${v}`).style.display='flex';
+  document.getElementById('algoDesc').textContent=ALGO_DESC[v]||'';
+}
+document.getElementById('braidPct').oninput=e=>document.getElementById('braidVal').textContent=e.target.value+'%';
+document.getElementById('pbPct').oninput=e=>document.getElementById('pbVal').textContent=e.target.value+'%';
+document.getElementById('erdosP').oninput=e=>document.getElementById('erdosPVal').textContent=(e.target.value/100).toFixed(2);
+document.getElementById('caveFill').oninput=e=>document.getElementById('caveFillVal').textContent=e.target.value+'%';
+document.getElementById('perlinScale').oninput=e=>document.getElementById('perlinScaleVal').textContent=e.target.value;
+document.getElementById('roomCount').oninput=e=>document.getElementById('roomCountVal').textContent=e.target.value;
+
+// ── misc wiring ───────────────────────────────────────────────────────────────
+document.getElementById('generateBtn').onclick=generate;
+document.getElementById('setEntranceBtn').onclick=()=>{settingMode='entrance';updateMode();};
+document.getElementById('setExitBtn').onclick=()=>{settingMode='exit';updateMode();};
+document.getElementById('clearPtsBtn').onclick=()=>{entrance=null;exit_=null;solutionPath=[];settingMode=null;updateMode();draw();};
+document.getElementById('findPathBtn').onclick=findPath;
+document.getElementById('clearPathBtn').onclick=()=>{solutionPath=[];draw();};
+document.getElementById('reshuffleWeights').onclick=()=>{if(maze.length){assignWeights();draw();}};
+document.getElementById('exportBtn').onclick=()=>{
+  if(!maze.length){alert('Generate first.');return;}
+  const sz=G*2+1,m=Array.from({length:sz},()=>new Array(sz).fill(1));
+  for(let r=0;r<G;r++)for(let c=0;c<G;c++){const mr=r*2+1,mc=c*2+1;m[mr][mc]=0;const{w}=maze[r][c];if(!w[0])m[mr-1][mc]=0;if(!w[1])m[mr][mc+1]=0;if(!w[2])m[mr+1][mc]=0;if(!w[3])m[mr][mc-1]=0;}
+  const a=Object.assign(document.createElement('a'),{href:URL.createObjectURL(new Blob([m.map(r=>r.join(' ')).join('\n')],{type:'text/plain'})),download:'maze.txt'});a.click();
+};
+document.getElementById('cellSize').oninput=e=>{CS=parseInt(e.target.value);document.getElementById('csVal').textContent=CS;if(maze.length){setupCanvas();draw();}};
+['cWall','cPath','cSolution','cEntrance','cExit'].forEach(id=>{
+  document.getElementById(id).onchange=e=>{if(id==='cWall')cWall=e.target.value;else if(id==='cPath')cPath=e.target.value;else if(id==='cSolution')cSolution=e.target.value;else if(id==='cEntrance')cEntrance=e.target.value;else if(id==='cExit')cExit=e.target.value;draw();};
+});
+
+initMaze(); setupCanvas(); draw(); updateMode(); updateAlgoUI();
+</script>
+</body>
+</html>
